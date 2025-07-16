@@ -3,7 +3,7 @@ from ..constants import CONTROL_MODE, IGNORE_PLAYERS, SPOTIFY_MODE
 from ..variables import player_info, player_type, player_instance
 from fastapi import FastAPI, Body, Query, Request
 
-from ..variables import player_instance
+from ..variables import player_instance, media_info
 from ..models import PlayerInfo, MediaData
 
 from typing import Optional
@@ -11,10 +11,12 @@ from fastapi.exceptions import HTTPException
 
 from ..players.mpdplayer import MPDPlayer
 from ..players.spotifymprisplayer import SpotifyMPRISPlayer
+from ..players.mpvplayer import MPVMediaPlayer
 
 from ..utils.spotify_auth_utils import is_spotify_setup, load_spotify_auth
 import re
 
+from ..utils.ytdlp_helpers import get_media_data, extract_youtube_id
 
 
 # NAME IT WHATEVER YOU WANT, PLAYER_ROUTER IS JUST A SUGGESTION
@@ -30,13 +32,7 @@ def player_status():
     global player_instance
     
     
-    # if CONTROL_MODE == "mpris":
-        
-    #     player_info = get_playerctl_data(player=player_type)
-    #     return player_info
-    # else:
-    
-    # REFACTOR THIS TO USE MPRIS CONTROLLER PLAYER
+
         
     if player_instance is not None:
         player_info.volume = int(player_instance.get_volume())
@@ -104,11 +100,45 @@ def play_media(MediaData: Optional[MediaData] = Body(None)):
         
         if SPOTIFY_MODE == "sp_client":
             player_instance = SpotifyMPRISPlayer(track_id)
+            player_type = player_instance.type
             player_info = player_instance.get_state()
             return player_info
         else:
-            # TODO: Implement Spotify playback with 
+            # TODO: Implement Spotify playback with YTDLP
             pass
+        
+    elif "youtube.com" in url or "youtu.be" in url:
+        try:
+            data = get_media_data(url)
+        except ValueError as e:
+            raise HTTPException(status_code=500, detail=f"Failed to fetch media data: {str(e)}")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
+        
+        if data is None:
+            raise HTTPException(status_code=404, detail="Media not found or unsupported format.")
+        
+        print(f"Media Data: {data}")
+        
+        media_info.title=data.get("title")
+        media_info.upload_date=data.get("upload_date")
+        media_info.uploader=data.get("uploader")
+        media_info.channel=data.get("channel", data.get("channel_id")) # fallback if channel is missing
+        media_info.url=data.get("webpage_url")
+        media_info.video_id=extract_youtube_id(url)  # Extract YouTube ID for reference
+        
+        player_instance = MPVMediaPlayer(data.get("webpage_url"))
+        player_type = player_instance.type
+        
+        
+        return player_instance.get_state()
+    
+    else:
+        raise HTTPException(status_code=400, detail="Unsupported media URL. Only Spotify and YouTube URLs are supported.")
+        
+    
+        
+    
     
     
 @router.post("/player/stop")
@@ -144,17 +174,14 @@ def pause_player():
         raise HTTPException(status_code=500, detail=f"Failed to execute pause: {str(e)}")
     
     
-@router.post("/player/replay")
-def replay_player():
+@router.post("/player/loop")
+def loop_player():
     if player_instance is not None:
         
             # SET MPD REPEAT MODE
         return {
-            "replay enabled": player_instance.set_repeat(),
+            "loop enabled": player_instance.set_repeat(),
         }
-
-        
-        # TODO, FOR OTHER PLAYERS.
         
     else:
         raise HTTPException(status_code=400, detail="No media is currently loaded")

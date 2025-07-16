@@ -5,6 +5,8 @@ import re
 from typing import Optional
 from app.models import MediaInfo
 
+from ..variables import media_info
+
 
 def check_ytdlp_available():
     return shutil.which("yt-dlp") is not None
@@ -14,25 +16,21 @@ def get_media_data(url: str) -> Optional[MediaInfo]:
         if not check_ytdlp_available():
             print("yt-dlp not available")
             # LOG this error or handle it as needed
-            return None
+            raise ValueError("yt-dlp is not installed or not found in PATH")
 
         cmd = ["yt-dlp", "-j", url]  # -j = print metadata as JSON
         result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=60)
         
         if result.returncode != 0:
-            raise Exception(f"yt-dlp error: {result.stderr.strip()}")
+            raise ValueError(f"yt-dlp error: {result.stderr.strip()}")
 
+
+            
         data = json.loads(result.stdout)
-        
-        print(data)
-        
-        media_info.title=data.get("title"),
-        media_info.upload_date=data.get("upload_date"),
-        media_info.uploader=data.get("uploader"),
-        media_info.channel=data.get("channel", data.get("channel_id")),  # fallback if channel is missing
-        media_info.url=data.get("webpage_url"),
-        media_info.video_id=extract_youtube_id(url)  # Extract YouTube ID for reference
-        
+
+        if not data:
+            raise ValueError("No metadata found for the provided URL")
+                
         return data
     except subprocess.TimeoutExpired:
         print("yt-dlp metadata fetch timed out")

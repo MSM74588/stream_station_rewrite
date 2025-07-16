@@ -16,6 +16,7 @@ class MPVMediaPlayer:
         self.info = {}
         self.ipc_path = f"/tmp/mpv_socket_{uuid.uuid4().hex[:8]}"  # Unique socket path
         self.process: 'Optional[subprocess.Popen]' = None
+        self.type = "mpv"
 
         # Only fetch metadata if it's a YouTube link
         if "youtube.com" in url or "youtu.be" in url:
@@ -82,6 +83,39 @@ class MPVMediaPlayer:
         self._stop_monitor.set()
         self._send_ipc_command({"command": ["quit"]})
         print("⏹️ Stopped playback.")
+        
+    def set_repeat(self):
+        """
+        Toggle repeat mode for mpv.
+        If loop-file is 'no', set it to 'inf'. Otherwise, set it to 'no'.
+        Return the new repeat status.
+        """
+        try:
+            # Get current loop status
+            with socket.socket(socket.AF_UNIX) as client:
+                client.connect(self.ipc_path)
+                get_command = {"command": ["get_property", "loop-file"]}
+                client.sendall((json.dumps(get_command) + '\n').encode('utf-8'))
+                response = client.makefile().readline()
+                result = json.loads(response)
+                current = result.get("data", "no")
+
+            # Determine next state
+            new_state = "yes" if current in ["no", None, False] else "no"
+
+            # Set new loop state
+            with socket.socket(socket.AF_UNIX) as client:
+                client.connect(self.ipc_path)
+                set_command = {"command": ["set_property", "loop-file", new_state]}
+                client.sendall((json.dumps(set_command) + '\n').encode('utf-8'))
+
+            print(f"🔁 Loop mode set to '{new_state}'.")
+            return new_state
+
+        except Exception as e:
+            print(f"⚠️ Failed to toggle repeat: {e}")
+            return None
+
 
     def _monitor_cache(self):
         """Monitor mpv's cache size and stop if it exceeds 1GB."""
@@ -190,6 +224,16 @@ class MPVMediaPlayer:
         except Exception as e:
             print(f"⚠️ Failed to get playback progress: {e}")
             return None
+        
+    def __del__(self):
+        print(f"Cleaning up MPVMediaPlayer for: {self.url}")
+        if self.process:
+            self.stop()
+        if os.path.exists(self.ipc_path):
+            os.remove(self.ipc_path)
+            print(f"Removed IPC socket at {self.ipc_path}")
+        else:
+            print(f"IPC socket {self.ipc_path} does not exist.")
 
 
 
