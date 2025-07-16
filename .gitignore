@@ -10,6 +10,8 @@ wheels/
 .venv
 
 app/configs/config.yaml
+app/configs/spotify_auth.yaml
+
 
 app/media/local/*
 app/media/downloads/spotify/*

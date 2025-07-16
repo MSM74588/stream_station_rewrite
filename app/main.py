@@ -18,6 +18,7 @@ from app.models import Item
 from app.crud import get_items, create_item
 
 from app.routers import player  # Import your router
+from app.routers import spotify_tasks
 
 from app.constants import VERSION, COVER_ART_PATH, MUSIC_DIR, MPD_PORT
 
@@ -101,6 +102,7 @@ app = FastAPI(
 )
 
 app.include_router(player.router)
+app.include_router(spotify_tasks.router)
 
 app.add_middleware(
     CORSMiddleware,
