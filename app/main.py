@@ -15,12 +15,14 @@ from fastapi import WebSocket, WebSocketDisconnect
 import json
 
 from app.models import Item
+from app.models import SpotifyLikedSongItem
 from app.crud import get_items, create_item
 
 from app.routers import player  # Import your router
 from app.routers import spotify_tasks
+from app.routers import songs_fetchers
 
-from app.constants import VERSION, COVER_ART_PATH, MUSIC_DIR, MPD_PORT
+from app.constants import VERSION, COVER_ART_PATH, MUSIC_DIR, MPD_PORT, DATABASE_URL
 
 from app.utils.check_utils import check_dependencies
 
@@ -29,6 +31,8 @@ from fastapi.staticfiles import StaticFiles
 from app.utils.player_utils import *
 
 from app.variables import mpd_proc, mpdirs2_proc, player_instance
+
+from app.database import create_db_and_tables, create_engine, get_session
 
 from .utils.command import control_playerctl
 
@@ -50,16 +54,7 @@ tags_metadata = [
 
 
 # --- Setup database ---
-Path("db").mkdir(parents=True, exist_ok=True)
-DATABASE_URL = "sqlite:///db/app.db"
-engine = create_engine(DATABASE_URL, echo=True)
 
-def create_db_and_tables():
-    SQLModel.metadata.create_all(engine)
-
-def get_session():
-    with Session(engine) as session:
-        yield session
 
 # --- Lifespan ---
 
@@ -103,6 +98,7 @@ app = FastAPI(
 
 app.include_router(player.router)
 app.include_router(spotify_tasks.router)
+app.include_router(songs_fetchers.router)
 
 app.add_middleware(
     CORSMiddleware,

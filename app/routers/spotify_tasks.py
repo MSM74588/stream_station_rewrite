@@ -91,3 +91,35 @@ def spotify_callback(request: Request):
     except Exception as e:
         return HTMLResponse(f"<h3>Error exchanging code for token: {e}</h3>", status_code=500)
     
+
+
+
+
+
+
+
+# @app.get("/tasks/fetch_spotify_songs")
+# def get_spotify_songs():
+#     init_spotify_db()
+#     # If DB is empty, fetch from Spotify and save
+#     songs = get_songs_from_db()
+#     if not songs:
+#         try:
+#             songs = fetch_liked_songs_from_spotify()
+#             save_songs_to_db(songs)
+#         except Exception as e:
+#             raise HTTPException(status_code=500, detail=f"Failed to fetch from Spotify: {e}")
+#     return songs
+    # Modify this to accept a parameter to manually sync when needed
+
+# @app.post("/sync/spotify")
+# def sync_spotify_songs():
+#     """
+#     Manually fetch liked songs from Spotify and update the local database.
+#     """
+#     try:
+#         songs = fetch_liked_songs_from_spotify()
+#         save_songs_to_db(songs)
+#         return {"status": "success", "synced_count": len(songs)}
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"Failed to sync from Spotify: {e}")

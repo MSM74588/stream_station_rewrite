@@ -6,6 +6,14 @@ class Item(SQLModel, table=True):
     name: str
     description: Optional[str] = None
     
+class SpotifyLikedSongItem(SQLModel, table=True):
+    id: str = Field(default=None, primary_key=True)
+    name: str
+    artist: str
+    album_art: Optional[str]
+    spotify_url: str
+    
+    
 
 # DATA MODELS ------------------------------------------------------- #
 from pydantic import BaseModel, Field

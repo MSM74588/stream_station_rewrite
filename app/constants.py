@@ -14,7 +14,7 @@ BASE_DIR = Path(__file__).resolve().parent
 CONFIG_PATH = BASE_DIR / "configs" / "config.yaml"
 AUTH_PATH = BASE_DIR / "configs" / "spotify_auth.yaml"
 SPOTIFY_DB_PATH = BASE_DIR / "db" / "spotify_liked_songs.db"
-LIKED_SONGS_DB_PATH = BASE_DIR / "db" / "liked_songs.db"
+# LIKED_SONGS_DB_PATH = BASE_DIR / "db" / "liked_songs.db"
 SPOTIFY_SCOPES = "user-library-read user-read-playback-state user-modify-playback-state"
 VERSION = "0.1.0"
 MUSIC_DIR = BASE_DIR / "media"
@@ -30,5 +30,4 @@ REQUIRED_EXECUTABLES = ["yt-dlp", "mpv", "mpd", "mpc", "mpDris2", "playerctl", "
 
 COVER_ART_PATH = Path(__file__).resolve().parent / "assets" / "coverarts"
 
-
-
+DATABASE_URL = "sqlite:///db/app.db"
