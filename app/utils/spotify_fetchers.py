@@ -38,13 +38,6 @@ def fetch_liked_songs_from_spotify():
                 existing = session.exec(
                     select(SpotifyLikedSongItem).where(SpotifyLikedSongItem.id == song_data["id"])
                 ).first()
-
-                # if not existing:
-                #     song = SpotifyLikedSongItem(**song_data)
-                #     session.add(song)
-                #     songs.append(song)
-                # else:
-                #     songs.append(existing)
                 
                 if not existing:
                     song = SpotifyLikedSongItem(**song_data)
@@ -60,5 +53,4 @@ def fetch_liked_songs_from_spotify():
                 results = sp.next(results)
             else:
                 break
-    print(f"songs: {songs}")
     return songs

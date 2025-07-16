@@ -3,8 +3,10 @@ from ..constants import MPD_PORT
 import shlex
 from ..utils.command import control_playerctl
 from ..utils.player_utils import get_playerctl_data
+from .mediaplayerbase import MediaPlayerBase
 
-class MPDPlayer:
+
+class MPDPlayer(MediaPlayerBase):
     def __init__(self, song_name: str):
         self.song_name = song_name
         self.info = None
@@ -106,6 +108,30 @@ class MPDPlayer:
         print(f"Setting MPD player volume to {volume}.")
         subprocess.run(["mpc", f"--port={MPD_PORT}", "volume", str(volume)], check=False)
         
+    def get_volume(self) -> int:
+        """
+        Get the current volume level of the MPD player.
+        Returns the volume as an integer between 0 and 100.
+        """
+        try:
+            result = subprocess.run(
+                ["mpc", f"--port={MPD_PORT}"],
+                capture_output=True,
+                text=True
+            )
+            for line in result.stdout.splitlines():
+                if "volume:" in line:
+                    # Example line: "volume: 85%   repeat: off   random: off"
+                    parts = line.split()
+                    for i, part in enumerate(parts):
+                        if part.startswith("volume:"):
+                            volume_str = parts[i + 1] if parts[i + 1].endswith('%') else part.split(":")[1]
+                            return int(volume_str.strip('%'))
+        except Exception as e:
+            print(f"⚠️ Failed to get volume from MPD: {e}")
+        return -1  # -1 indicates error
+        
+        
     def get_state(self):
         """
         Get the current state of the MPD player.
@@ -115,6 +141,31 @@ class MPDPlayer:
         except Exception as e:
             print(f"Error getting MPD player state: {e}")
             return None
+        
+    def get_progress(self) -> int:
+        """
+        Get the current playback progress of the MPD player in seconds.
+        """
+        try:
+            result = subprocess.run(
+                ["mpc", f"--port={MPD_PORT}"],
+                capture_output=True,
+                text=True
+            )
+            for line in result.stdout.splitlines():
+                if "/" in line and ":" in line:
+                    # Look for a token like 0:35/3:45
+                    tokens = line.strip().split()
+                    for token in tokens:
+                        if "/" in token and ":" in token:
+                            current_time = token.split("/")[0]  # e.g., "0:35"
+                            minutes, seconds = map(int, current_time.split(":"))
+                            return minutes * 60 + seconds
+        except Exception as e:
+            print(f"⚠️ Failed to get MPD playback progress: {e}")
+        return -1  # -1 indicates error
+
+
         
     def __del__(self):
         print(f"Cleaning up MPDPlayer for: {self.song_name}")

@@ -6,8 +6,9 @@ import time
 import uuid
 import threading
 from typing import Optional
+from .mediaplayerbase import MediaPlayerBase
 
-class MPVMediaPlayer:
+class MPVMediaPlayer(MediaPlayerBase):
     def __init__(self, url):
         if not url:
             raise ValueError("A valid URL must be provided to initialize MediaPlayerManager.")
@@ -172,27 +173,59 @@ class MPVMediaPlayer:
     #         'duration': self.info.get('duration')
     #     }
     def get_state(self):
-        progress = None
-        try:
-            with socket.socket(socket.AF_UNIX) as client:
-                client.connect(self.ipc_path)
-                command = {"command": ["get_property", "time-pos"]}
-                client.sendall((json.dumps(command) + '\n').encode('utf-8'))
-                
-                # Receive response
-                response = client.recv(1024)
-                result = json.loads(response.decode('utf-8'))
-                progress = result.get("data")
-        except Exception as e:
-            print(f"⚠️ Failed to get playback progress: {e}")
-        
-        return {
-            'title': self.info.get('title'),
-            'uploader': self.info.get('uploader'),
-            'duration': self.info.get('duration'),
-            'progress_seconds': progress,
-            'media_type': 'live' if self.info.get('is_live') else 'video'
+        """
+        Return a unified state dictionary for the MPV player.
+        Format:
+        {
+            "status": "playing" | "paused" | "stopped",
+            "current_media_type": "audio" | "video",
+            "volume": 100,
+            "is_paused": false,
+            "cache_size": 0,
+            "media_name": "it boy",
+            "media_uploader": "bbno$",
+            "media_duration": 146,
+            "media_progress": 18,
+            "is_live": false,
+            "media_url": "https://..."
         }
+        """
+        try:
+            # Get volume
+            volume = self.get_volume()
+            if volume is not None:
+                volume = int(round(volume))
+            else:
+                volume = -1
+
+            # Get progress
+            progress = self.get_progress()
+            progress = int(progress) if progress is not None else 0
+
+            # Get paused state
+            paused = self._get_paused()
+
+            # Get cache
+            cache = self._get_cache_size()
+            cache = cache if cache is not None else 0
+
+            return {
+                "status": "paused" if paused else "playing" if self.is_running() else "stopped",
+                "current_media_type": "audio" if "--no-video" in self.process.args else "video",
+                "volume": volume,
+                "is_paused": paused,
+                "cache_size": cache,
+                "media_name": self.info.get("title") or "Unknown",
+                "media_uploader": self.info.get("uploader") or self.info.get("channel") or "Unknown",
+                "media_duration": self.info.get("duration") or 0,
+                "media_progress": progress,
+                "is_live": self.info.get("is_live") or False,
+                "media_url": self.info.get("webpage_url") or self.url,
+            }
+        except Exception as e:
+            print(f"⚠️ Failed to get MPV state: {e}")
+            return {}
+
 
     def is_running(self):
         return self.process is not None and self.process.poll() is None
@@ -210,6 +243,26 @@ class MPVMediaPlayer:
         except Exception as e:
             print(f"⚠️ Failed to get volume: {e}")
             return None
+        
+    def set_volume(self, volume: int):
+        """
+        Set the volume of the MPV player.
+        Accepts values from 0 to 150.
+        """
+        if not (0 <= volume <= 150):
+            raise ValueError("Volume must be between 0 and 150.")
+
+        try:
+            with socket.socket(socket.AF_UNIX) as client:
+                client.connect(self.ipc_path)
+                command = {"command": ["set_property", "volume", volume]}
+                client.sendall((json.dumps(command) + '\n').encode('utf-8'))
+                print(f"🔊 Volume set to {volume}")
+        except Exception as e:
+            print(f"⚠️ Failed to set volume: {e}")
+
+        
+    
 
     def get_progress(self) -> Optional[float]:
         """Get the current playback position (in seconds) from mpv."""

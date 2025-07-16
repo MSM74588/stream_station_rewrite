@@ -3,8 +3,9 @@ import time
 from ..utils.player_utils import get_playerctl_data
 
 import subprocess
+from .mediaplayerbase import MediaPlayerBase
 
-class SpotifyMPRISPlayer:
+class SpotifyMPRISPlayer(MediaPlayerBase):
     def __init__(self, spotify_id):
         self.spotify_id = spotify_id
         
@@ -75,6 +76,24 @@ class SpotifyMPRISPlayer:
             print(f"Error getting SpotifyMPRISPlayer state: {e}")
             return None
         
+    def get_volume(self) -> int:
+        """
+        Get the current volume level of the Spotify player (0–100).
+        """
+        try:
+            result = subprocess.run(
+                ["playerctl", "--player=spotify", "volume"],
+                capture_output=True,
+                text=True
+            )
+            output = result.stdout.strip()
+            if output:
+                return int(round(float(output) * 100))
+        except Exception as e:
+            print(f"⚠️ Failed to get Spotify volume: {e}")
+        return -1  # -1 indicates error
+
+        
     def set_volume(self, volume: int):
         """
         Set the volume for the MPD player.
@@ -84,6 +103,25 @@ class SpotifyMPRISPlayer:
         scaled_vol = volume / 100
 
         control_playerctl(f"--player=spotify volume {scaled_vol}")
+        
+    def get_progress(self) -> int:
+        """
+        Get the current playback progress of the Spotify player in seconds.
+        """
+        try:
+            result = subprocess.run(
+                ["playerctl", "--player=spotify", "position"],
+                capture_output=True,
+                text=True
+            )
+            output = result.stdout.strip()
+            if output:
+                return int(float(output))
+        except Exception as e:
+            print(f"⚠️ Failed to get Spotify progress: {e}")
+        return -1  # -1 indicates error
+
+
 
     def __del__(self):
         print(f"Cleaning up SpotifyMPRISPlayer for: {self.spotify_id}")

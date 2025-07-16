@@ -1,6 +1,5 @@
 from fastapi import FastAPI, Depends
-from sqlmodel import SQLModel, Session, create_engine
-from pathlib import Path
+from sqlmodel import Session
 from contextlib import asynccontextmanager
 
 
@@ -15,7 +14,6 @@ from fastapi import WebSocket, WebSocketDisconnect
 import json
 
 from app.models import Item
-from app.models import SpotifyLikedSongItem
 from app.crud import get_items, create_item
 
 from app.routers import player  # Import your router
@@ -96,7 +94,7 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-app.include_router(player.router)
+app.include_router(player.router, prefix="/player")
 app.include_router(spotify_tasks.router)
 app.include_router(songs_fetchers.router)
 

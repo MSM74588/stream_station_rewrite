@@ -17,31 +17,31 @@ from ..utils.spotify_auth_utils import is_spotify_setup, load_spotify_auth
 import re
 
 from ..utils.ytdlp_helpers import get_media_data, extract_youtube_id
-
+from ..utils.player_utils import get_playerctl_data
 
 # NAME IT WHATEVER YOU WANT, PLAYER_ROUTER IS JUST A SUGGESTION
 router = APIRouter()
 
+import subprocess
+from pathlib import Path
+from urllib.parse import urlparse, unquote
+from fastapi.responses import Response
+import requests
 
-@router.get("/player", tags=["Player"], summary="Get Player Status", response_model=PlayerInfo)
+
+@router.get("/", tags=["Player"], summary="Get Player Status", response_model=PlayerInfo)
 def player_status():
     """
     Get the current status of the media player.
     """
     
     global player_instance
-    
-    
-
         
     if player_instance is not None:
-        player_info.volume = int(player_instance.get_volume())
-        player_info.media_progress = int(player_instance.get_progress())
-        
-    
+        player_info = player_instance.get_state()
         return player_info
     
-@router.post("/player/play")
+@router.post("/play", tags=["Player"])
 def play_media(MediaData: Optional[MediaData] = Body(None)):
     """
     Play media in the player.
@@ -141,7 +141,7 @@ def play_media(MediaData: Optional[MediaData] = Body(None)):
     
     
     
-@router.post("/player/stop")
+@router.post("/stop", tags=["Player"])
 def stop_player():
     global player_instance    
     if player_instance is None:
@@ -157,7 +157,7 @@ def stop_player():
         raise HTTPException(status_code=500, detail=f"Failed to execute stop: {str(e)}")
     
 
-@router.post("/player/pause")
+@router.post("/pause", tags=["Player"])
 def pause_player():
     global player_instance
     global player_info
@@ -174,7 +174,7 @@ def pause_player():
         raise HTTPException(status_code=500, detail=f"Failed to execute pause: {str(e)}")
     
     
-@router.post("/player/loop")
+@router.post("/loop", tags=["Player"])
 def loop_player():
     if player_instance is not None:
         
@@ -186,7 +186,7 @@ def loop_player():
     else:
         raise HTTPException(status_code=400, detail="No media is currently loaded")
     
-@router.post("/player/volume")
+@router.post("/volume", tags=["Player"])
 def set_volume(set: int = Query(..., ge=0, le=150, description="Volume percent (0-150)")):
     global player_info
     global player_type
@@ -208,10 +208,73 @@ def set_volume(set: int = Query(..., ge=0, le=150, description="Volume percent (
 
 
 # TODO: Implement with Queue and playback listener and manager
-@router.post("/player/next")
+@router.post("/next", tags=["Player"])
 def player_next():
     return {"message": "TODO: player next"}
     
-@router.post("/player/previous")
+@router.post("/previous", tags=["Player"])
 def player_previous():
     return {"message": "TODO: player prev"}
+
+
+@router.get("/album_art", tags=["Player"])
+def album_art():
+    global player_type
+
+    valid_states_by_player = {
+        "spotify": ["playing", "paused"],
+        "mpd": ["playing"],
+        "mpv": ["playing", "paused"]  # if supported via playerctl
+    }
+
+    valid_states = valid_states_by_player.get(player_type, [])
+
+    try:
+        status = subprocess.check_output(
+            ["playerctl", "--player=" + player_type, "status"],
+            text=True
+        ).strip().lower()
+        print(f"{player_type} status: {status}")
+
+        if status not in valid_states:
+            return {"error": f"{player_type} not in a valid state"}
+
+        url = subprocess.check_output(
+            ["playerctl", "--player=" + player_type, "metadata", "mpris:artUrl"],
+            text=True
+        ).strip()
+        print(f"{player_type} artUrl: {url}")
+
+        if url.startswith("file://"):
+            parsed = urlparse(url)
+            local_path = Path(unquote(parsed.path))
+            print(f"Trying local path: {local_path}")
+
+            if not local_path.exists():
+                return {"error": "File not found at local path"}
+
+            mime = "image/jpeg"
+            if local_path.suffix.lower() == ".png":
+                mime = "image/png"
+
+            return Response(content=local_path.read_bytes(), media_type=mime)
+
+        elif url.startswith("http"):
+            print(f"Downloading remote image from: {url}")
+            response = requests.get(url, timeout=5)
+
+            if response.status_code != 200:
+                return {"error": f"HTTP request failed with status: {response.status_code}"}
+
+            mime = response.headers.get("Content-Type", "image/jpeg")
+            return Response(content=response.content, media_type=mime)
+
+        else:
+            return {"error": f"Unrecognized art URL format: {url}"}
+
+    except subprocess.CalledProcessError as e:
+        print(f"{player_type} command failed: {e}")
+        return {"error": f"{player_type} command failed: {e}"}
+    except Exception as e:
+        print(f"Unexpected error for {player_type}: {e}")
+        return {"error": f"Unexpected error for {player_type}: {e}"}
