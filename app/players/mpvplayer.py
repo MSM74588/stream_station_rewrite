@@ -264,7 +264,7 @@ class MPVMediaPlayer(MediaPlayerBase):
         
     
 
-    def get_progress(self) -> Optional[float]:
+    def get_progress(self) -> Optional[float]: # type: ignore
         """Get the current playback position (in seconds) from mpv."""
         try:
             with socket.socket(socket.AF_UNIX) as client:

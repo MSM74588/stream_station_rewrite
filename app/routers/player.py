@@ -49,10 +49,25 @@ def play_media(MediaData: Optional[MediaData] = Body(None)):
     
     global player_instance, player_type
     
+    def _clean_player(player_instance):
+        try:
+            if player_instance is not None:
+                player_instance.stop()
+                del player_instance
+                player_instance = None
+        except:
+            ValueError("Cannot Stop Player")
+    
     # PLAIN PLAYBACK CONTROL, IF NOT DATA IS PASSED
     if player_instance is not None and not MediaData:
         # CAN BE MPRIS, MPD, MPV
         player_instance.play()
+        
+        
+    # STOP any previous player
+    # TODO: It would have been better if this block is played just before starting a new player, then if the resolution failed it could have been just playing instead
+     
+    
         
     # IF PLAYER_INSTANCE is Empty, then Check if the DATA is complete, to be played 
     if MediaData is None or (not MediaData.url and not MediaData.song_name):
@@ -66,6 +81,8 @@ def play_media(MediaData: Optional[MediaData] = Body(None)):
         print(f"🎵 MPD Song Name: '{song_name}'")
         # NOW HANDLE PLAYING MPD SONG
         try:
+            _clean_player(player_instance)
+            
             player_instance = MPDPlayer(song_name=song_name)
             player_type = player_instance.type
             player_instance.play()
@@ -99,6 +116,8 @@ def play_media(MediaData: Optional[MediaData] = Body(None)):
         print(f"SPOTIFY TRACK ID: {track_id}")
         
         if SPOTIFY_MODE == "sp_client":
+            _clean_player(player_instance)
+            
             player_instance = SpotifyMPRISPlayer(track_id)
             player_type = player_instance.type
             player_info = player_instance.get_state()
@@ -126,6 +145,8 @@ def play_media(MediaData: Optional[MediaData] = Body(None)):
         media_info.channel=data.get("channel", data.get("channel_id")) # fallback if channel is missing
         media_info.url=data.get("webpage_url")
         media_info.video_id=extract_youtube_id(url)  # Extract YouTube ID for reference
+        
+        _clean_player(player_instance)
         
         player_instance = MPVMediaPlayer(data.get("webpage_url"))
         player_type = player_instance.type

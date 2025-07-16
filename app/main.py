@@ -69,6 +69,8 @@ async def lifespan(app: FastAPI):
     
     global player_instance
     if player_instance is not None:
+        player_instance.stop()
+        del player_instance
         player_instance = None
     
     # STOP ANY EXISTING PLAYERS VIA MPRIS
@@ -83,6 +85,8 @@ async def lifespan(app: FastAPI):
     await cleanup_mpd_mpdris()
         
     if player_instance is not None:
+        player_instance.stop()
+        del player_instance
         player_instance = None
 
 # --- FastAPI App ---
