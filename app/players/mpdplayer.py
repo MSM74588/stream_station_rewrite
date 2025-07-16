@@ -10,6 +10,7 @@ class MPDPlayer:
         self.info = None
         
         self.type: str = "mpd"
+        self.is_puased: bool = False
         
         if not song_name:
             raise ValueError("Song name must be provided for MPD playback.")
@@ -37,8 +38,11 @@ class MPDPlayer:
         """
         print(f"Playing song: {self.song_name}")
         
-        control_playerctl("--player=mpv,spotify,mpd,firefox stop")
-        subprocess.run(["mpc", f"--port={MPD_PORT}", "play"], check=False)
+        if self.is_puased:
+            subprocess.run(["mpc", f"--port={MPD_PORT}", "pause"], check=False)
+        else:
+            control_playerctl("--player=mpv,spotify,mpd,firefox stop")
+            subprocess.run(["mpc", f"--port={MPD_PORT}", "play"], check=False)
         
     def stop(self):
         """
@@ -56,10 +60,41 @@ class MPDPlayer:
         
     def set_repeat(self):
         """
-        Set repeat mode for the MPD player.
+        Toggle repeat mode for the MPD player using mpc.
+        If repeat is off, turn it on. If it's on, turn it off.
+        Return the new repeat status: 'on' or 'off'.
         """
         print("Setting repeat mode for MPD player.")
-        subprocess.run(["mpc", f"--port={MPD_PORT}", "repeat", "on"], check=False)
+
+        # Get current status
+        result = subprocess.run(
+            ["mpc", f"--port={MPD_PORT}"],
+            capture_output=True,
+            text=True
+        )
+        
+        output = result.stdout
+        repeat_status = "off"
+        
+        # Look for "[repeat: on]" or "[repeat: off]"
+        for line in output.splitlines():
+            if "repeat: on" in line:
+                repeat_status = "on"
+                break
+            elif "repeat: off" in line:
+                repeat_status = "off"
+                break
+
+        # Toggle repeat mode
+        if repeat_status == "off":
+            subprocess.run(["mpc", f"--port={MPD_PORT}", "repeat", "on"])
+            print("Repeat mode set to 'on'.")
+            return "on"
+        else:
+            subprocess.run(["mpc", f"--port={MPD_PORT}", "repeat", "off"])
+            print("Repeat mode set to 'off'.")
+            return "off"
+
         
     def set_volume(self, volume: int):
         """
