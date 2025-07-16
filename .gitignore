@@ -8,3 +8,13 @@ wheels/
 
 # Virtual environments
 .venv
+
+app/configs/config.yaml
+
+app/media/local/*
+app/media/downloads/spotify/*
+app/media/downloads/youtube/*
+
+db/*
+
+app/mpd/*
