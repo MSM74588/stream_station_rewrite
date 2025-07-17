@@ -4,9 +4,13 @@ from app.models import SpotifyLikedSongItem
 from app.database import engine
 
 def get_all_liked_songs_from_db():
-    with Session(engine) as session:
-        songs = session.exec(select(SpotifyLikedSongItem)).all()
-        return [song.model_dump() for song in songs]
+    try:
+        with Session(engine) as session:
+            songs = session.exec(select(SpotifyLikedSongItem)).all()
+            return [song.model_dump() for song in songs]
+    except Exception as e:
+        return e
+    
 
 def fetch_liked_songs_from_spotify():
     sp = load_spotify_auth()

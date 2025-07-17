@@ -28,11 +28,18 @@ from urllib.parse import urlparse, unquote
 from fastapi.responses import Response
 import requests
 
+"""
+TODO: Queue
+- This has to be handled as per the link (if playlist link) provided, like if spotify is instructed to play a Playlist,
+It should not initiate the queue, and the next and previous action should be directly be passed to mpris player to play the next song in the play list.
+"""
+
 
 @router.get("/", tags=["Player"], summary="Get Player Status", response_model=PlayerInfo)
 def player_status():
     """
-    Get the current status of the media player.
+    # Player Status
+    Gets the current status of the media player -> `player_instance`.
     """
     
     global player_instance
@@ -44,17 +51,28 @@ def player_status():
 @router.post("/play", tags=["Player"])
 def play_media(MediaData: Optional[MediaData] = Body(None)):
     """
-    Play media in the player.
+    # Play Media
+    if `player_instance` is not `None` i.e,  a player is loaded, then it triggers `play` action of player regardless if its paused
+    or not.
+
+    else, if `player_instance` is `None`, i.e no player loaded, then it takes either an `url` or `song_name`.
+    It first processes `song_name` and if `song_name` is there, then it will play `MPD`
+    
+    if `url` is provided then:
+    1. <b>spotify</b> will be played by `SpotifyMPRISPlayer`
+    2. <b>Youtube</b> will be played by `MPVMediaPlayer`
+    3. Then if any `unknown_url` is passed it will be handled via the `browser_url_handler` as per links mentioned in `url_handler.yaml` TODO
+    4. Ultimately in case if no match, it will return an `HTTPException`
     """
     
     global player_instance, player_type
     
-    def _clean_player(player_instance):
+    def _clean_player(player):
         try:
-            if player_instance is not None:
-                player_instance.stop()
-                del player_instance
-                player_instance = None
+            if player is not None:
+                player.stop()
+                del player
+                player = None
         except:
             ValueError("Cannot Stop Player")
     
@@ -63,11 +81,6 @@ def play_media(MediaData: Optional[MediaData] = Body(None)):
         # CAN BE MPRIS, MPD, MPV
         player_instance.play()
         
-        
-    # STOP any previous player
-    # TODO: It would have been better if this block is played just before starting a new player, then if the resolution failed it could have been just playing instead
-     
-    
         
     # IF PLAYER_INSTANCE is Empty, then Check if the DATA is complete, to be played 
     if MediaData is None or (not MediaData.url and not MediaData.song_name):
@@ -164,6 +177,10 @@ def play_media(MediaData: Optional[MediaData] = Body(None)):
     
 @router.post("/stop", tags=["Player"])
 def stop_player():
+    """
+    # Stops Player
+    Stops Player and Unloads them from `player_instance`
+    """
     global player_instance    
     if player_instance is None:
             raise HTTPException(status_code=400, detail="No media is currently loaded")
@@ -180,6 +197,9 @@ def stop_player():
 
 @router.post("/pause", tags=["Player"])
 def pause_player():
+    """
+    # Pause the current player
+    """
     global player_instance
     global player_info
     if player_instance is None:
@@ -197,6 +217,10 @@ def pause_player():
     
 @router.post("/loop", tags=["Player"])
 def loop_player():
+    """
+    # Set Loop Mode of Player
+    Toggles the loop mode for the player, it only sets track loop mode, i.e single loop for ALL types of players.
+    """
     if player_instance is not None:
         
             # SET MPD REPEAT MODE
@@ -209,6 +233,11 @@ def loop_player():
     
 @router.post("/volume", tags=["Player"])
 def set_volume(set: int = Query(..., ge=0, le=150, description="Volume percent (0-150)")):
+    """
+    # Set Volume of player
+    Pass the volume as a parameter, and it sets the volume.
+    For `MPV` the volume can be set upto `150`, for others it is capped to 100
+    """
     global player_info
     global player_type
     
@@ -231,15 +260,29 @@ def set_volume(set: int = Query(..., ge=0, le=150, description="Volume percent (
 # TODO: Implement with Queue and playback listener and manager
 @router.post("/next", tags=["Player"])
 def player_next():
+    """
+    # Play Next Track from `Queue`
+    TODO
+    """
     return {"message": "TODO: player next"}
     
 @router.post("/previous", tags=["Player"])
 def player_previous():
+    """
+    # Play Next Track from `Queue`
+    TODO
+    """
     return {"message": "TODO: player prev"}
 
 
 @router.get("/album_art", tags=["Player"])
 def album_art():
+    """
+    # Album Art
+    Returns the album art image.
+    Uses MPRIS to get the metadata `mpris:artUrl`
+    If no player is running, i.e `player_instance` is `None`, returns an HTTPException
+    """
     global player_type
 
     valid_states_by_player = {

@@ -2,16 +2,21 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from app.models import SpotifyLikedSongItem
 from typing import List
 from ..utils.spotify_fetchers import fetch_liked_songs_from_spotify, get_all_liked_songs_from_db
+from fastapi import Depends
+from ..utils.spotify_auth_utils import is_spotify_setup
 
 router = APIRouter()
 
-@router.get("/songs/spotify", response_model=List[SpotifyLikedSongItem])
+@router.get("/songs/spotify", response_model=List[SpotifyLikedSongItem], tags=["Resource Fetcher"])
 def get_spotify_songs(request: Request):
     """
-    Fetch liked songs from spotify, sync them to DB and the reurn the songs.
-    if sync parameter is passed, then it will freshly fetch the songs from Spotify.
+    Fetch liked songs from spotify, sync them to DB and the return the songs.
+    if `sync` parameter is passed, then it will freshly fetch the songs from Spotify.
     else, it will return the songs from the local database.
     """
+    
+    if not is_spotify_setup():
+        raise HTTPException(status_code=400, detail="Spotify auth is not properly set up.")
     
     sync_param = request.query_params.get("sync")
     
@@ -25,4 +30,11 @@ def get_spotify_songs(request: Request):
             raise HTTPException(status_code=500, detail=f"Failed to fetch from Spotify: {e}")
     
     # If sync is absent or explicitly false
-    return get_all_liked_songs_from_db()
+    try:
+        return get_all_liked_songs_from_db()
+    
+    except ValueError as v:
+        HTTPException(status_code=500, detail=f"Failed fetching from DB: {v}")
+    
+    except Exception as e:
+        HTTPException(status_code=500, detail=f"Something went wrong: {e}")

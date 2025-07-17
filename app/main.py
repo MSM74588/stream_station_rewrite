@@ -113,13 +113,16 @@ app.add_middleware(
 start_time = time.monotonic()
 
 # SERVE COVER ART STATIC FILES
-app.mount("/liked_songs_cover_art", StaticFiles(directory=str(COVER_ART_PATH)), name="liked_songs_cover_art")
+app.mount("/assets/coverarts", StaticFiles(directory=str(COVER_ART_PATH)), name="liked_songs_cover_art")
 
 
 
 # ROUTES ------------------------------------------------------- #
 @app.get("/", tags=["Server Status"], summary="Get server status")
 def server_status():
+    """
+    # Get Server Status
+    """
     uptime_seconds = time.monotonic() - start_time
     return {
         "uptime_seconds": round(uptime_seconds, 2),

@@ -10,8 +10,34 @@ from .resource_fetchers import load_config, load_auth, save_auth
 
 
 
+# def is_spotify_setup():
+#     return os.path.exists(AUTH_PATH)
+
+REQUIRED_KEYS = [
+    "access_token",
+    "refresh_token",
+    "scope",
+    "token_type"
+]
+
 def is_spotify_setup():
-    return os.path.exists(AUTH_PATH)
+    if not os.path.exists(AUTH_PATH):
+        return False
+    
+    try:
+        with open(AUTH_PATH, "r") as f:
+            data = yaml.safe_load(f)
+    except Exception as e:
+        print(f"Failed to read auth file: {e}")
+        return False
+
+    # Check that all required keys exist and are not empty
+    for key in REQUIRED_KEYS:
+        if not data.get(key):
+            print(f"Missing or empty Spotify auth key: {key}")
+            return False
+    
+    return True
 
 def load_spotify_auth():
     auth = load_auth(AUTH_PATH)
