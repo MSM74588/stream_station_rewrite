@@ -1,33 +1,29 @@
 from fastapi import APIRouter
-from ..constants import CONTROL_MODE, IGNORE_PLAYERS, SPOTIFY_MODE
-from ..variables import player_info, player_type, player_instance
-from fastapi import FastAPI, Body, Query, Request
+from fastapi import Body, Query
 
-from ..variables import player_instance, media_info
+# from ..variables import player_instance, media_info
+import app.variables as vars
+
 from ..models import PlayerInfo, MediaData
 
 from typing import Optional
 from fastapi.exceptions import HTTPException
-
-from ..players.mpdplayer import MPDPlayer
-from ..players.spotifymprisplayer import SpotifyMPRISPlayer
-from ..players.mpvplayer import MPVMediaPlayer
-
-from ..utils.spotify_auth_utils import is_spotify_setup, load_spotify_auth
-import re
-
-from ..utils.ytdlp_helpers import get_media_data, extract_youtube_id
-from ..utils.player_utils import get_playerctl_data
-
-# NAME IT WHATEVER YOU WANT, PLAYER_ROUTER IS JUST A SUGGESTION
-router = APIRouter()
 
 import subprocess
 from pathlib import Path
 from urllib.parse import urlparse, unquote
 from fastapi.responses import Response
 import requests
-from app.utils.history import log_history
+
+from app.utils.media_handlers import *
+
+
+
+
+
+# NAME IT WHATEVER YOU WANT, PLAYER_ROUTER IS JUST A SUGGESTION
+router = APIRouter()
+
 
 
 """
@@ -41,23 +37,22 @@ It should not initiate the queue, and the next and previous action should be dir
 def player_status():
     """
     # Player Status
-    Gets the current status of the media player -> `player_instance`.
+    Gets the current status of the media player -> `vars.player_instance`.
     """
     
-    global player_instance
         
-    if player_instance is not None:
-        player_info = player_instance.get_state()
-        return player_info
+    if vars.player_instance is not None:
+        vars.player_info = vars.player_instance.get_state()
+        return vars.player_info
     
 @router.post("/play", tags=["Player"])
 async def play_media(MediaData: Optional[MediaData] = Body(None)):
     """
     # Play Media
-    if `player_instance` is not `None` i.e,  a player is loaded, then it triggers `play` action of player regardless if its paused
+    if `vars.player_instance` is not `None` i.e,  a player is loaded, then it triggers `play` action of player regardless if its paused
     or not.
 
-    else, if `player_instance` is `None`, i.e no player loaded, then it takes either an `url` or `song_name`.
+    else, if `vars.player_instance` is `None`, i.e no player loaded, then it takes either an `url` or `song_name`.
     It first processes `song_name` and if `song_name` is there, then it will play `MPD`
     
     if `url` is provided then:
@@ -67,21 +62,26 @@ async def play_media(MediaData: Optional[MediaData] = Body(None)):
     4. Ultimately in case if no match, it will return an `HTTPException`
     """
     
-    global player_instance, player_type
     
     def _clean_player(player):
+
         try:
             if player is not None:
                 player.stop()
                 del player
                 player = None
-        except:
-            ValueError("Cannot Stop Player")
+            vars.player_instance = None  # explicitly reset global vars.player_instance
+        except Exception as e:
+            print(f"Cannot Stop Player: {e}")
+            raise ValueError("Cannot Stop Player")
     
     # PLAIN PLAYBACK CONTROL, IF NOT DATA IS PASSED
-    if player_instance is not None and not MediaData:
+    if vars.player_instance is not None and not MediaData:
         # CAN BE MPRIS, MPD, MPV
-        player_instance.play()
+        vars.player_instance.play()
+        return {
+            "message" : "played"
+        }
         
         
     # IF PLAYER_INSTANCE is Empty, then Check if the DATA is complete, to be played 
@@ -93,117 +93,53 @@ async def play_media(MediaData: Optional[MediaData] = Body(None)):
     # if it contains song_name then route to MPD playback, for local playback only. 
     if MediaData.song_name and not MediaData.url:
         song_name = MediaData.song_name.strip()
-        print(f"🎵 MPD Song Name: '{song_name}'")
-        # NOW HANDLE PLAYING MPD SONG
-        try:
-            _clean_player(player_instance)
-            
-            
-            
-            player_instance = MPDPlayer(song_name=song_name)
-            player_type = player_instance.type
-            
-            await log_history(player_type, song_name=player_instance.get_state().media_name)
-            
-            player_instance.play()
-        except ValueError as e:
-            raise HTTPException(status_code=404, detail=str(e))
-        player_info = player_instance.get_state()
-        
-        # WHY this way? bcoz when running the subprocess command, it returns blank.
-        if player_info.status != "playing":
-             raise HTTPException(status_code=404, detail=f"Song not found in MPD library: '{song_name}'")
-        else:
-            return player_info
+        return await handle_mpd_song(song_name, _clean_player)
+
         
     url = MediaData.url.strip() # type: ignore
-        
-    # SPOTIFY PLAYBACK -------------------------------------------------------------
-    if "spotify.com" in url:
-        if not is_spotify_setup():
-            raise HTTPException(status_code=403, detail="Spotify is not authenticated. Please visit /setup.")
-        try:
-            sp = load_spotify_auth()
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to authenticate with Spotify: {str(e)}")
-        
-        match = re.search(r"track/([A-Za-z0-9]+)", url)
-        
-        if not match:
-            raise HTTPException(status_code=400, detail="Invalid Spotify track URL")
-        
-        track_id = match.group(1)
-        print(f"SPOTIFY TRACK ID: {track_id}")
-        
-        if SPOTIFY_MODE == "sp_client":
-            _clean_player(player_instance)
-            
-            player_instance = SpotifyMPRISPlayer(track_id)
-            player_type = player_instance.type
-            
-            await log_history(player_type, song_name=player_instance.get_state().media_name)
-            
-            player_info = player_instance.get_state()
-            return player_info
-        else:
-            # TODO: Implement Spotify playback with YTDLP
-            pass
-        
-    elif "youtube.com" in url or "youtu.be" in url:
-        try:
-            data = get_media_data(url)
-        except ValueError as e:
-            raise HTTPException(status_code=500, detail=f"Failed to fetch media data: {str(e)}")
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
-        
-        if data is None:
-            raise HTTPException(status_code=404, detail="Media not found or unsupported format.")
-        
-        print(f"Media Data: {data}")
-        
-        media_info.title=data.get("title")
-        media_info.upload_date=data.get("upload_date")
-        media_info.uploader=data.get("uploader")
-        media_info.channel=data.get("channel", data.get("channel_id")) # fallback if channel is missing
-        media_info.url=data.get("webpage_url")
-        media_info.video_id=extract_youtube_id(url)  # Extract YouTube ID for reference
-        
-        _clean_player(player_instance)
-        
-        player_instance = MPVMediaPlayer(data.get("webpage_url"))
-        player_type = player_instance.type
-        
-        # FIXME: Return type of MPV player is a dict. Unlike other players.
-        await log_history(player_type, song_name=player_instance.get_state().get("media_name"))
-        
-        
-        return player_instance.get_state()
     
-    else:
-        raise HTTPException(status_code=400, detail="Unsupported media URL. Only Spotify and YouTube URLs are supported.")
-        
     
-        
     
+    # === Dispatcher ===
+        
+    handlers = [
+        (is_spotify_url, handle_spotify_url),
+        (is_youtube_url, handle_youtube_url),
+    ]
+
+    for matcher, handler in handlers:
+        if matcher(url):
+            return await handler(url, _clean_player)
+
+    raise HTTPException(status_code=400, detail="Unsupported media URL. Only Spotify and YouTube URLs are supported.")
+    
+# ======== MEDIA MATHERS ============
+
+def is_spotify_url(url: str) -> bool:
+    return "spotify.com" in url
+
+def is_youtube_url(url: str) -> bool:
+    return "youtube.com" in url or "youtu.be" in url
+
+# ================ MEDIA HANDLERS ==================== #
     
     
 @router.post("/stop", tags=["Player"])
 def stop_player():
     """
     # Stops Player
-    Stops Player and Unloads them from `player_instance`
+    Stops Player and Unloads them from `vars.player_instance`
     """
-    global player_instance    
-    if player_instance is None:
+
+    if vars.player_instance is None:
             raise HTTPException(status_code=400, detail="No media is currently loaded")
     try:
-        player_instance.stop()
-        player_instance = None  # Reset the player instance                
+        vars.player_instance.stop()
+        vars.player_instance = None  # Reset the player instance                
         # Reset the STATE
-        player_info = PlayerInfo()
-        player_info.status = "stopped"
-        return player_info
+        vars.player_info = PlayerInfo()
+        vars.player_info.status = "stopped"
+        return vars.player_info
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to execute stop: {str(e)}")
     
@@ -213,17 +149,16 @@ def pause_player():
     """
     # Pause the current player
     """
-    global player_instance
-    global player_info
-    if player_instance is None:
+
+    if vars.player_instance is None:
         raise HTTPException(status_code=400, detail="No media is currently loaded")
     
     try:
-        player_instance.pause()
-        player_info = player_instance.get_state()
+        vars.player_instance.pause()
+        vars.player_info = vars.player_instance.get_state()
         # player_info. = PlayerInfo(is_paused=True)
         
-        return player_info
+        return vars.player_info
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to execute pause: {str(e)}")
     
@@ -234,11 +169,11 @@ def loop_player():
     # Set Loop Mode of Player
     Toggles the loop mode for the player, it only sets track loop mode, i.e single loop for ALL types of players.
     """
-    if player_instance is not None:
+    if vars.player_instance is not None:
         
             # SET MPD REPEAT MODE
         return {
-            "loop enabled": player_instance.set_repeat(),
+            "loop enabled": vars.player_instance.set_repeat(),
         }
         
     else:
@@ -251,23 +186,21 @@ def set_volume(set: int = Query(..., ge=0, le=150, description="Volume percent (
     Pass the volume as a parameter, and it sets the volume.
     For `MPV` the volume can be set upto `150`, for others it is capped to 100
     """
-    global player_info
-    global player_type
     
-    if player_instance is None:
+    if vars.player_instance is None:
         raise HTTPException(status_code=400, detail="No media is currently loaded")
     
     if not (0 <= set <= 150):
             raise HTTPException(status_code=400, detail="Volume must be between 0 and 150")
         
-    if player_instance.type == "mpd" or player_instance.type == "spotify":
+    if vars.player_instance.type == "mpd" or vars.player_instance.type == "spotify":
         # Cap set to 100 for mpd
         set = min(set, 100)
         
-    player_instance.set_volume(set)
+    vars.player_instance.set_volume(set)
                 
-    player_info = player_instance.get_state()
-    return player_info
+    vars.player_info = vars.player_instance.get_state()
+    return vars.player_info
 
 
 # TODO: Implement with Queue and playback listener and manager
@@ -294,9 +227,9 @@ def album_art():
     # Album Art
     Returns the album art image.
     Uses MPRIS to get the metadata `mpris:artUrl`
-    If no player is running, i.e `player_instance` is `None`, returns an HTTPException
+    If no player is running, i.e `vars.player_instance` is `None`, returns an HTTPException
     """
-    global player_type
+
 
     valid_states_by_player = {
         "spotify": ["playing", "paused"],
@@ -304,23 +237,23 @@ def album_art():
         "mpv": ["playing", "paused"]  # if supported via playerctl
     }
 
-    valid_states = valid_states_by_player.get(player_type, [])
+    valid_states = valid_states_by_player.get(vars.player_type, [])
 
     try:
         status = subprocess.check_output(
-            ["playerctl", "--player=" + player_type, "status"],
+            ["playerctl", "--player=" + vars.player_type, "status"],
             text=True
         ).strip().lower()
-        print(f"{player_type} status: {status}")
+        print(f"{vars.player_type} status: {status}")
 
         if status not in valid_states:
-            return {"error": f"{player_type} not in a valid state"}
+            return {"error": f"{vars.player_type} not in a valid state"}
 
         url = subprocess.check_output(
-            ["playerctl", "--player=" + player_type, "metadata", "mpris:artUrl"],
+            ["playerctl", "--player=" + vars.player_type, "metadata", "mpris:artUrl"],
             text=True
         ).strip()
-        print(f"{player_type} artUrl: {url}")
+        print(f"{vars.player_type} artUrl: {url}")
 
         if url.startswith("file://"):
             parsed = urlparse(url)
@@ -350,8 +283,8 @@ def album_art():
             return {"error": f"Unrecognized art URL format: {url}"}
 
     except subprocess.CalledProcessError as e:
-        print(f"{player_type} command failed: {e}")
-        return {"error": f"{player_type} command failed: {e}"}
+        print(f"{vars.player_type} command failed: {e}")
+        return {"error": f"{vars.player_type} command failed: {e}"}
     except Exception as e:
-        print(f"Unexpected error for {player_type}: {e}")
-        return {"error": f"Unexpected error for {player_type}: {e}"}
+        print(f"Unexpected error for {vars.player_type}: {e}")
+        return {"error": f"Unexpected error for {vars.player_type}: {e}"}
