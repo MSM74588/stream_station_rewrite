@@ -29,5 +29,6 @@ CONTROL_MODE = config["control_mode"]
 REQUIRED_EXECUTABLES = ["yt-dlp", "mpv", "mpd", "mpc", "mpDris2", "playerctl", "ffmpeg"]
 
 COVER_ART_PATH = Path(__file__).resolve().parent / "assets" / "coverarts"
+COVER_ART_URL_PREFIX = "/assets/coverarts"
 
 DATABASE_URL = "sqlite:///db/app.db"

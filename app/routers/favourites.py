@@ -5,7 +5,7 @@ from app.models import FavouritedSongs
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Optional
-from app.constants import COVER_ART_PATH
+from app.constants import COVER_ART_PATH, COVER_ART_URL_PREFIX
 
 from sqlmodel import Session, select
 
@@ -48,7 +48,7 @@ async def liked_songs_post(
         file_path = COVER_ART_PATH / filename
         with open(file_path, "wb") as f:
             f.write(await image.read())
-        cover_art_url = f"/liked_songs_cover_art/{filename}"
+        cover_art_url = f"{COVER_ART_URL_PREFIX}/{filename}"
 
     # Save to DB (update your add_liked_song to accept artist and cover_art_url)
     # song = add_liked_song(song_name, url, song_type, artist, cover_art_url)
@@ -84,4 +84,11 @@ async def liked_songs_post(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to add song to DB: {e}")
 
-    
+@router.get("/favourites")
+def get_all_favourited_songs():
+    try:
+        with Session(engine) as session:
+            songs = session.exec(select(FavouritedSongs)).all()
+            return {"songs": songs}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch songs: {e}")

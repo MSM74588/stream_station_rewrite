@@ -20,7 +20,7 @@ from app.crud import get_items, create_item
 from app.routers import player, spotify_tasks, songs_fetchers, search, favourites
 
 
-from app.constants import VERSION, COVER_ART_PATH, MUSIC_DIR, MPD_PORT, DATABASE_URL
+from app.constants import VERSION, COVER_ART_PATH, MPD_PORT, COVER_ART_URL_PREFIX
 
 from app.utils.check_utils import check_dependencies
 
@@ -30,7 +30,7 @@ from app.utils.player_utils import *
 
 from app.variables import mpd_proc, mpdirs2_proc, player_instance
 
-from app.database import create_db_and_tables, create_engine, get_session
+from app.database import create_db_and_tables, get_session
 
 from .utils.command import control_playerctl
 
@@ -117,7 +117,7 @@ app.add_middleware(
 start_time = time.monotonic()
 
 # SERVE COVER ART STATIC FILES
-app.mount("/assets/coverarts", StaticFiles(directory=str(COVER_ART_PATH)), name="liked_songs_cover_art")
+app.mount(COVER_ART_URL_PREFIX, StaticFiles(directory=str(COVER_ART_PATH)), name="coverarts")
 
 
 
