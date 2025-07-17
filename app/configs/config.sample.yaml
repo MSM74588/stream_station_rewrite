@@ -10,3 +10,14 @@ control_mode: "mpris"
 
 # Spotify mode: ytdlp or sp_client
 spotify_mode: "sp_client"
+
+
+# AVOID TRAILING SLASH
+# Remember to replace you user with your username $USER
+scopes:
+  - "/home/user/Music"
+  - "/mnt/media"
+  - "/var/data/public"
+
+forbidden_scopes:
+  - "/home/msm/.config"

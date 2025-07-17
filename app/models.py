@@ -34,10 +34,17 @@ class PlayerInfo(BaseModel):
     
 
 class MediaData(BaseModel):
-    url: Optional[str] = Field(None, description="The URL of the media to play. Supported sources: YouTube, Spotify.")
-    song_name : Optional[str] = Field(
+    url: Optional[str] = Field(
         None, 
-        description="Name of the song to search and play from YouTube if URL is not provided."
+        description="The URL of the media to play. Supported sources: YouTube, Spotify."
+    )
+    song_name: Optional[str] = Field(
+        None, 
+        description="Name of the song to search and play from MPD if URL is not provided."
+    )
+    file_path: Optional[str] = Field(
+        None,
+        description="Absolute or relative file path to the media file to play using MPD."
     )
     
 class MediaInfo(BaseModel):
