@@ -11,11 +11,8 @@ import asyncio
 
 # PLAYERCTL DATA
 def get_playerctl_data(player: Optional[str] = None) -> PlayerInfo:
-    
-    time.sleep(0.5) 
-    # To settle the playing state, since dbus is updated asynchronously,
-    # so calling it instantly after setting state will still return the previous value.
-    
+    time.sleep(0.5)  # Give DBus some time to reflect the current state
+
     def run_playerctl_command(args):
         cmd = ["playerctl", f"--ignore-player={IGNORE_PLAYERS}"]
         if player:
@@ -29,7 +26,7 @@ def get_playerctl_data(player: Optional[str] = None) -> PlayerInfo:
             print("playerctl not found.")
             return None
 
-    # Fetch data
+    # Fetch metadata
     status = run_playerctl_command(["status"]) or "Stopped"
     title = run_playerctl_command(["metadata", "xesam:title"]) or ""
     artist = run_playerctl_command(["metadata", "xesam:artist"]) or ""
@@ -38,6 +35,10 @@ def get_playerctl_data(player: Optional[str] = None) -> PlayerInfo:
     duration_us = run_playerctl_command(["metadata", "mpris:length"]) or "0"
     position_us = run_playerctl_command(["position"]) or "0"
 
+    # Basic fallback: if title is a raw URL or empty
+    if not title or title.startswith("watch?v=") or title.strip() in url:
+        title = Path(url).stem  # fallback to filename-like info
+
     # Convert microseconds to seconds
     def to_seconds(us):
         try:
@@ -45,19 +46,19 @@ def get_playerctl_data(player: Optional[str] = None) -> PlayerInfo:
         except (ValueError, TypeError):
             return 0
 
-    # Final object
     return PlayerInfo(
         status=status.lower(),
-        current_media_type="audio",  # You can detect more accurately if needed
-        volume=int(float(volume) * 100),  # Convert to 0–100 scale
+        current_media_type="audio",  # Can be refined if needed
+        volume=int(float(volume) * 100),
         is_paused=(status.lower() != "playing"),
-        cache_size=0,  # You can implement this if relevant
+        cache_size=0,
         media_name=title,
         media_uploader=artist,
         media_duration=to_seconds(duration_us),
         media_progress=to_seconds(position_us),
         media_url=url
     )
+
     
 # INITIALISE MPD
 

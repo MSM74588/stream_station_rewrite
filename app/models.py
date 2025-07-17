@@ -1,6 +1,8 @@
 from sqlmodel import SQLModel, Field
 from typing import Optional
 import uuid
+from datetime import datetime, timezone
+
 
 class Item(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -23,7 +25,12 @@ class FavouritedSongs(SQLModel, table=True):
     type: str
     cover_art_url: Optional[str]
     
-
+class History(SQLModel, table=True):
+    time: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat(), primary_key=True)
+    song_name: str
+    duration: int
+    url: int
+    player_type: str
 
 # DATA MODELS ------------------------------------------------------- #
 from pydantic import BaseModel, Field

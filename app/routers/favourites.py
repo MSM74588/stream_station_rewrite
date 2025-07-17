@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Body, File, UploadFile, Depends, HTTPException
+from fastapi import APIRouter, Body, File, UploadFile, Depends, HTTPException, Query
 from uuid import uuid4
 import os
 from app.models import FavouritedSongs
@@ -22,11 +22,13 @@ async def liked_songs_post(
     image: UploadFile = File(None)
 ):
     """
-    # Get Favourited songs
-    The songs has to be added manually via the API endpoint.
+    # Add Favourite songs
+    The songs has to be added manually via this API endpoint.
     """
     # Determine type
-    song_type = ""
+    song_type: str = ""
+    
+    # TODO: Make it smart later. Auto FIlter to specific URL.
     
     if url:
         if "youtube.com" in url or "youtu.be" in url:
@@ -40,7 +42,7 @@ async def liked_songs_post(
         url = ""
 
     # Handle image upload
-    cover_art_url = ""
+    cover_art_url: str
     
     if image and image.filename:
         ext = os.path.splitext(image.filename or "")[-1]
@@ -85,10 +87,18 @@ async def liked_songs_post(
         raise HTTPException(status_code=500, detail=f"Failed to add song to DB: {e}")
 
 @router.get("/favourites")
-def get_all_favourited_songs():
+def get_all_favourited_songs(type: Optional[str] = Query(None, description="Filter by song type (e.g. youtube, spotify, mpd, ...)")):
+    """
+    # Get Favourite Songs
+    Get the Manually Added Favourited Songs, can be filtered by add a `type=` parameter
+    """
     try:
         with Session(engine) as session:
-            songs = session.exec(select(FavouritedSongs)).all()
+            if type:
+                statement = select(FavouritedSongs).where(FavouritedSongs.type == type.lower())
+            else:
+                statement = select(FavouritedSongs)
+            songs = session.exec(statement).all()
             return {"songs": songs}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch songs: {e}")

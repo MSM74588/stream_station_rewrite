@@ -27,6 +27,8 @@ from pathlib import Path
 from urllib.parse import urlparse, unquote
 from fastapi.responses import Response
 import requests
+from app.utils.history import log_history
+
 
 """
 TODO: Queue
@@ -49,7 +51,7 @@ def player_status():
         return player_info
     
 @router.post("/play", tags=["Player"])
-def play_media(MediaData: Optional[MediaData] = Body(None)):
+async def play_media(MediaData: Optional[MediaData] = Body(None)):
     """
     # Play Media
     if `player_instance` is not `None` i.e,  a player is loaded, then it triggers `play` action of player regardless if its paused
@@ -96,8 +98,13 @@ def play_media(MediaData: Optional[MediaData] = Body(None)):
         try:
             _clean_player(player_instance)
             
+            
+            
             player_instance = MPDPlayer(song_name=song_name)
             player_type = player_instance.type
+            
+            await log_history(player_type, song_name=player_instance.get_state().media_name)
+            
             player_instance.play()
         except ValueError as e:
             raise HTTPException(status_code=404, detail=str(e))
@@ -133,6 +140,9 @@ def play_media(MediaData: Optional[MediaData] = Body(None)):
             
             player_instance = SpotifyMPRISPlayer(track_id)
             player_type = player_instance.type
+            
+            await log_history(player_type, song_name=player_instance.get_state().media_name)
+            
             player_info = player_instance.get_state()
             return player_info
         else:
@@ -163,6 +173,9 @@ def play_media(MediaData: Optional[MediaData] = Body(None)):
         
         player_instance = MPVMediaPlayer(data.get("webpage_url"))
         player_type = player_instance.type
+        
+        # FIXME: Return type of MPV player is a dict. Unlike other players.
+        await log_history(player_type, song_name=player_instance.get_state().get("media_name"))
         
         
         return player_instance.get_state()
