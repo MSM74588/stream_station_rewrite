@@ -20,3 +20,4 @@ app/media/downloads/youtube/*
 db/*
 
 app/mpd/*
+app/assets/coverarts/*

@@ -1,5 +1,6 @@
 from sqlmodel import SQLModel, Field
 from typing import Optional
+import uuid
 
 class Item(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -13,7 +14,16 @@ class SpotifyLikedSongItem(SQLModel, table=True):
     album_art: Optional[str]
     spotify_url: str
     
+class FavouritedSongs(SQLModel, table=True):
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    song_name: str
+    artist: str
+    url: str
+    date_added: Optional[str]
+    type: str
+    cover_art_url: Optional[str]
     
+
 
 # DATA MODELS ------------------------------------------------------- #
 from pydantic import BaseModel, Field

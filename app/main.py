@@ -16,9 +16,9 @@ import json
 from app.models import Item
 from app.crud import get_items, create_item
 
-from app.routers import player  # Import your router
-from app.routers import spotify_tasks
-from app.routers import songs_fetchers
+
+from app.routers import player, spotify_tasks, songs_fetchers, search, favourites
+
 
 from app.constants import VERSION, COVER_ART_PATH, MUSIC_DIR, MPD_PORT, DATABASE_URL
 
@@ -101,6 +101,10 @@ app = FastAPI(
 app.include_router(player.router, prefix="/player")
 app.include_router(spotify_tasks.router)
 app.include_router(songs_fetchers.router)
+app.include_router(search.router, prefix="/search")
+app.include_router(favourites.router)
+
+
 
 app.add_middleware(
     CORSMiddleware,
