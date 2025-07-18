@@ -62,15 +62,12 @@ async def play_media(MediaData: Optional[MediaData] = Body(None)):
     4. Ultimately in case if no match, it will return an `HTTPException`
     """
     
-    
+        
     def _clean_player(player):
-
         try:
             if player is not None:
-                player.stop()
-                del player
-                player = None
-            vars.player_instance = None  # explicitly reset global vars.player_instance
+                player.unload()  # Gracefully unload the player (stop, cleanup, etc.)
+            vars.player_instance = None  # Explicitly reset global reference
         except Exception as e:
             print(f"Cannot Stop Player: {e}")
             raise ValueError("Cannot Stop Player")

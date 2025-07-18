@@ -6,6 +6,7 @@ import time
 import uuid
 import threading
 from typing import Optional
+from contextlib import suppress
 from .mediaplayerbase import MediaPlayerBase
 
 class MPVMediaPlayer(MediaPlayerBase):
@@ -85,7 +86,7 @@ class MPVMediaPlayer(MediaPlayerBase):
         self._send_ipc_command({"command": ["quit"]})
         print("⏹️ Stopped playback.")
         
-    def set_repeat(self):
+    def set_repeat(self): # type: ignore
         """
         Toggle repeat mode for mpv.
         If loop-file is 'no', set it to 'inf'. Otherwise, set it to 'no'.
@@ -278,15 +279,39 @@ class MPVMediaPlayer(MediaPlayerBase):
             print(f"⚠️ Failed to get playback progress: {e}")
             return None
         
+    # def __del__(self):
+    #     print(f"Cleaning up MPVMediaPlayer for: {self.url}")
+    #     if self.process:
+    #         self.stop()
+    #     if os.path.exists(self.ipc_path):
+    #         os.remove(self.ipc_path)
+    #         print(f"Removed IPC socket at {self.ipc_path}")
+    #     else:
+    #         print(f"IPC socket {self.ipc_path} does not exist.")
+    
     def __del__(self):
+        # Optional: keep this to catch orphaned cleanup
+        self.cleanup()
+
+    def __enter__(self):
+        return self
+    
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.cleanup()
+
+    
+    def cleanup(self):
         print(f"Cleaning up MPVMediaPlayer for: {self.url}")
         if self.process:
             self.stop()
-        if os.path.exists(self.ipc_path):
+        with suppress(FileNotFoundError):
             os.remove(self.ipc_path)
             print(f"Removed IPC socket at {self.ipc_path}")
-        else:
-            print(f"IPC socket {self.ipc_path} does not exist.")
+                
+    def unload(self):
+        """Public method to cleanly shut down player."""
+        self.__exit__(None, None, None)
+
 
 
 

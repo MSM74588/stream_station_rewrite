@@ -1,85 +1,83 @@
 from ..utils.command import control_playerctl
 import time
-from ..utils.player_utils import get_playerctl_data
-
 import subprocess
 from .mediaplayerbase import MediaPlayerBase
+from ..utils.player_utils import get_playerctl_data
 
 class SpotifyMPRISPlayer(MediaPlayerBase):
-    def __init__(self, spotify_id):
+    def __init__(self, spotify_id: str):
         self.spotify_id = spotify_id
-        
         self.type: str = "spotify"
         self.is_paused: bool = False
-        
-        if spotify_id:
-            subprocess.run(["xdg-open", f"spotify:track:{spotify_id}"], check=True)
-            # Disable repeat using playerctl
-            time.sleep(2)  # Wait for Spotify to initialize
-            subprocess.run(["playerctl", "--player=spotify", "loop", "None"])
-            # control_playerctl("loop None")
-        else:
+        self.unloaded: bool = False  # Public as requested
+
+        if not spotify_id:
             raise ValueError("No Spotify ID provided")
 
+        # Open the track in Spotify
+        subprocess.run(["xdg-open", f"spotify:track:{spotify_id}"], check=True)
+        time.sleep(2)  # Wait for Spotify to become responsive
+
+        # Disable repeat
+        control_playerctl("--player=spotify loop None")
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.unload()
+
+    def unload(self):
+        if not self.unloaded:
+            self.stop()
+            self.unloaded = True
+
+    def __del__(self):
+        print(f"Cleaning up SpotifyMPRISPlayer for: {self.spotify_id}")
+        self.unload()
+
     def play(self):
-        # Play / pause
-        # Since Spotify start play on opening just apply pause logic
         if self.is_paused:
             control_playerctl("--player=spotify play")
-            
-        pass
-    
+
     def pause(self):
-        """
-        Pause the SpotifyMPRISPlayer.
-        """
         self.is_paused = True
         control_playerctl("--player=spotify pause")
-        
-    def set_repeat(self):
-        """
-        Set repeat mode for the Spotify player.
-        """
-        result = subprocess.run(
-            ["playerctl", "--player=spotify", "loop"],
-            capture_output=True,
-            text=True
-        )
-        
-        current_loop = result.stdout.strip()
-        
-        print(f"Current loop status: {current_loop}")
 
-        if current_loop == "None":
-            subprocess.run(["playerctl", "--player=spotify", "loop", "Track"])
-            print("Loop mode set to 'Track'.")
-            return "on"
-        else:
-            subprocess.run(["playerctl", "--player=spotify", "loop", "None"])
-            print("Loop mode set to 'None'.")
-            return "off"
-        # print(f"Loop mode remains '{current_loop}'.")
-        # return current_loop
-        
-    
     def stop(self):
         control_playerctl("--player=spotify stop")
-        
-    def get_state(self):
-        """
-        Get the current state of the SpotifyMPRISPlayer.
-        """
+
+    def set_repeat(self): # type: ignore
         try:
-            time.sleep(2)  # Wait for Spotify to initialize
+            result = subprocess.run(
+                ["playerctl", "--player=spotify", "loop"],
+                capture_output=True,
+                text=True
+            )
+            current_loop = result.stdout.strip()
+            print(f"Current loop status: {current_loop}")
+
+            if current_loop == "None":
+                subprocess.run(["playerctl", "--player=spotify", "loop", "Track"])
+                print("Loop mode set to 'Track'.")
+                return "on"
+            else:
+                subprocess.run(["playerctl", "--player=spotify", "loop", "None"])
+                print("Loop mode set to 'None'.")
+                return "off"
+        except Exception as e:
+            print(f"⚠️ Failed to toggle loop mode: {e}")
+            return None
+
+    def get_state(self):
+        try:
+            time.sleep(2)
             return get_playerctl_data(player="spotify")
         except Exception as e:
             print(f"Error getting SpotifyMPRISPlayer state: {e}")
             return None
-        
+
     def get_volume(self) -> int:
-        """
-        Get the current volume level of the Spotify player (0–100).
-        """
         try:
             result = subprocess.run(
                 ["playerctl", "--player=spotify", "volume"],
@@ -91,23 +89,15 @@ class SpotifyMPRISPlayer(MediaPlayerBase):
                 return int(round(float(output) * 100))
         except Exception as e:
             print(f"⚠️ Failed to get Spotify volume: {e}")
-        return -1  # -1 indicates error
+        return -1
 
-        
     def set_volume(self, volume: int):
-        """
-        Set the volume for the MPD player.
-        """
         if not (0 <= volume <= 100):
             raise ValueError("Volume must be between 0 and 100.")
         scaled_vol = volume / 100
-
         control_playerctl(f"--player=spotify volume {scaled_vol}")
-        
+
     def get_progress(self) -> int:
-        """
-        Get the current playback progress of the Spotify player in seconds.
-        """
         try:
             result = subprocess.run(
                 ["playerctl", "--player=spotify", "position"],
@@ -119,11 +109,4 @@ class SpotifyMPRISPlayer(MediaPlayerBase):
                 return int(float(output))
         except Exception as e:
             print(f"⚠️ Failed to get Spotify progress: {e}")
-        return -1  # -1 indicates error
-
-
-
-    def __del__(self):
-        print(f"Cleaning up SpotifyMPRISPlayer for: {self.spotify_id}")
-        # Run your cleanup command here
-        self.stop()  # For example, stop playback
+        return -1
