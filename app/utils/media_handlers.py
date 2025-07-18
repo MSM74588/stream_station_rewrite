@@ -75,10 +75,11 @@ async def handle_mpd_song(song_name: str, clean_player):
         clean_player(vars.player_instance)
         vars.player_instance = MPDPlayer(song_name=song_name)
         vars.player_type = vars.player_instance.type
+        
+        vars.player_instance.play()
 
         await log_history(vars.player_type, song_name=vars.player_instance.get_state().media_name) # type: ignore
 
-        vars.player_instance.play()
 
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
