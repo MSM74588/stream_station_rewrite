@@ -65,13 +65,27 @@ class MPVMediaPlayer(MediaPlayerBase):
         self._monitor_thread.start()
 
     def _send_ipc_command(self, command: dict):
-        """Send a command to the mpv IPC socket."""
+        """Send a command to the mpv IPC socket with better error handling."""
+        if not self.is_running():
+            print("⚠️ Cannot send IPC command: MPV is not running")
+            return False
+            
+        if not os.path.exists(self.ipc_path):
+            print(f"⚠️ IPC socket does not exist: {self.ipc_path}")
+            return False
+            
         try:
             with socket.socket(socket.AF_UNIX) as client:
+                client.settimeout(2)  # Add timeout to prevent hanging
                 client.connect(self.ipc_path)
                 client.sendall((json.dumps(command) + '\n').encode('utf-8'))
-        except Exception as e:
+                return True
+        except (ConnectionRefusedError, FileNotFoundError, socket.timeout) as e:
             print(f"⚠️ IPC command failed: {e}")
+            return False
+        except Exception as e:
+            print(f"⚠️ Unexpected IPC error: {e}")
+            return False
 
     def play(self):
         self._send_ipc_command({"command": ["set_property", "pause", False]})
@@ -82,10 +96,38 @@ class MPVMediaPlayer(MediaPlayerBase):
         print("⏸️ Paused playback.")
 
     def stop(self):
+        """Stop the MPV player and clean up resources."""
+        # Stop the monitoring thread FIRST
         self._stop_monitor.set()
-        self._send_ipc_command({"command": ["quit"]})
-        print("⏹️ Stopped playback.")
         
+        # Only send quit command if the process is still running
+        if self.is_running():
+            try:
+                self._send_ipc_command({"command": ["quit"]})
+                print("⏹️ Sent quit command to MPV.")
+                
+                # Wait a bit for graceful shutdown
+                try:
+                    self.process.wait(timeout=3)
+                except subprocess.TimeoutExpired:
+                    print("⚠️ MPV didn't quit gracefully, terminating...")
+                    self.process.terminate()
+                    try:
+                        self.process.wait(timeout=2)
+                    except subprocess.TimeoutExpired:
+                        print("⚠️ MPV didn't terminate, killing...")
+                        self.process.kill()
+                        
+            except Exception as e:
+                print(f"⚠️ Error stopping MPV: {e}")
+                # Force kill if IPC fails
+                if self.process and self.process.poll() is None:
+                    self.process.terminate()
+        else:
+            print("⏹️ MPV already stopped.")
+
+
+
     def set_repeat(self): # type: ignore
         """
         Toggle repeat mode for mpv.
@@ -122,26 +164,54 @@ class MPVMediaPlayer(MediaPlayerBase):
     def _monitor_cache(self):
         """Monitor mpv's cache size and stop if it exceeds 1GB."""
         MAX_CACHE = 1073741824  # 1GB in bytes
+        
         while not self._stop_monitor.is_set():
             try:
+                # Check if we should stop monitoring
+                if not self.is_running():
+                    print("🔍 MPV stopped, ending cache monitor")
+                    break
+                    
+                # Check if socket still exists
+                if not os.path.exists(self.ipc_path):
+                    print("🔍 IPC socket removed, ending cache monitor")
+                    break
+                
                 cache_size = self._get_cache_size()
                 paused = self._get_paused()
+                
                 if cache_size is not None and cache_size > MAX_CACHE:
                     print(f"⚠️ Cache size exceeded 1GB: {cache_size} bytes. Stopping player.")
                     self.stop()
                     break
+                    
                 if paused and cache_size is not None and cache_size > MAX_CACHE:
                     print(f"⚠️ Cache size exceeded 1GB while paused: {cache_size} bytes. Stopping player.")
                     self.stop()
                     break
+                    
             except Exception as e:
-                print(f"⚠️ Cache monitor error: {e}")
+                # Don't spam errors if the socket is gone
+                if "No such file or directory" not in str(e) and "Connection refused" not in str(e):
+                    print(f"⚠️ Cache monitor error: {e}")
+                # If we get socket errors, the player is probably stopped
+                if "No such file or directory" in str(e) or "Connection refused" in str(e):
+                    break
+                    
+            # Wait before next check, but respect stop signal
             self._stop_monitor.wait(2)  # Check every 2 seconds
+        
+        print("🔍 Cache monitoring stopped")
 
     def _get_cache_size(self):
         """Get the current cache size from mpv via IPC."""
+        # Don't try if we know the player is stopped
+        if not self.is_running() or not os.path.exists(self.ipc_path):
+            return None
+            
         try:
             with socket.socket(socket.AF_UNIX) as client:
+                client.settimeout(1)  # Short timeout
                 client.connect(self.ipc_path)
                 command = {"command": ["get_property", "demuxer-cache-state"]}
                 client.sendall((json.dumps(command) + '\n').encode('utf-8'))
@@ -149,22 +219,27 @@ class MPVMediaPlayer(MediaPlayerBase):
                 result = json.loads(response.decode('utf-8'))
                 cache_state = result.get("data", {})
                 return cache_state.get("cache-size", 0)
-        except Exception as e:
-            print(f"⚠️ Failed to get cache size: {e}")
+        except Exception:
+            # Don't log errors - the monitoring loop will handle this
             return None
 
     def _get_paused(self):
         """Check if mpv is paused via IPC."""
+        # Don't try if we know the player is stopped
+        if not self.is_running() or not os.path.exists(self.ipc_path):
+            return False
+            
         try:
             with socket.socket(socket.AF_UNIX) as client:
+                client.settimeout(1)  # Short timeout
                 client.connect(self.ipc_path)
                 command = {"command": ["get_property", "pause"]}
                 client.sendall((json.dumps(command) + '\n').encode('utf-8'))
                 response = client.recv(1024)
                 result = json.loads(response.decode('utf-8'))
                 return result.get("data", False)
-        except Exception as e:
-            print(f"⚠️ Failed to get paused state: {e}")
+        except Exception:
+            # Don't log errors - the monitoring loop will handle this
             return False
 
     # def get_state(self):
@@ -301,12 +376,31 @@ class MPVMediaPlayer(MediaPlayerBase):
 
     
     def cleanup(self):
+        """Clean up MPV player resources."""
         print(f"Cleaning up MPVMediaPlayer for: {self.url}")
-        if self.process:
+        
+        # Stop the monitoring thread FIRST
+        if hasattr(self, '_stop_monitor'):
+            self._stop_monitor.set()
+        
+        # Wait for the monitoring thread to finish
+        if hasattr(self, '_monitor_thread') and self._monitor_thread.is_alive():
+            try:
+                self._monitor_thread.join(timeout=2)  # Wait max 2 seconds
+                if self._monitor_thread.is_alive():
+                    print("⚠️ Monitoring thread didn't stop in time")
+            except Exception as e:
+                print(f"⚠️ Error stopping monitoring thread: {e}")
+        
+        # Now stop the player process
+        if self.is_running():
             self.stop()
-        with suppress(FileNotFoundError):
-            os.remove(self.ipc_path)
-            print(f"Removed IPC socket at {self.ipc_path}")
+        
+        # Clean up the socket file
+        if hasattr(self, 'ipc_path'):
+            with suppress(FileNotFoundError):
+                os.remove(self.ipc_path)
+                print(f"Removed IPC socket at {self.ipc_path}")
                 
     def unload(self):
         """Public method to cleanly shut down player."""
