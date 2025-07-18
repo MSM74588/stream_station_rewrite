@@ -19,6 +19,7 @@ class MPVMediaPlayer(MediaPlayerBase):
         self.ipc_path = f"/tmp/mpv_socket_{uuid.uuid4().hex[:8]}"  # Unique socket path
         self.process: 'Optional[subprocess.Popen]' = None
         self.type = "mpv"
+        self._cleaned_up = False
 
         # Only fetch metadata if it's a YouTube link
         if "youtube.com" in url or "youtu.be" in url:
@@ -66,6 +67,10 @@ class MPVMediaPlayer(MediaPlayerBase):
 
     def _send_ipc_command(self, command: dict):
         """Send a command to the mpv IPC socket with better error handling."""
+        if self._cleaned_up:
+            print("⚠️ Cannot send IPC command: Player is cleaned up")
+            return False
+            
         if not self.is_running():
             print("⚠️ Cannot send IPC command: MPV is not running")
             return False
@@ -76,7 +81,7 @@ class MPVMediaPlayer(MediaPlayerBase):
             
         try:
             with socket.socket(socket.AF_UNIX) as client:
-                client.settimeout(2)  # Add timeout to prevent hanging
+                client.settimeout(2)
                 client.connect(self.ipc_path)
                 client.sendall((json.dumps(command) + '\n').encode('utf-8'))
                 return True
@@ -97,8 +102,13 @@ class MPVMediaPlayer(MediaPlayerBase):
 
     def stop(self):
         """Stop the MPV player and clean up resources."""
+        if self._cleaned_up:
+            print("⏹️ Player already stopped and cleaned up.")
+            return
+            
         # Stop the monitoring thread FIRST
-        self._stop_monitor.set()
+        if hasattr(self, '_stop_monitor'):
+            self._stop_monitor.set()
         
         # Only send quit command if the process is still running
         if self.is_running():
@@ -125,6 +135,7 @@ class MPVMediaPlayer(MediaPlayerBase):
                     self.process.terminate()
         else:
             print("⏹️ MPV already stopped.")
+
 
 
 
@@ -365,8 +376,9 @@ class MPVMediaPlayer(MediaPlayerBase):
     #         print(f"IPC socket {self.ipc_path} does not exist.")
     
     def __del__(self):
-        # Optional: keep this to catch orphaned cleanup
-        self.cleanup()
+        """Destructor - only cleanup if not already done."""
+        if not self._cleaned_up:
+            self.cleanup()
 
     def __enter__(self):
         return self
@@ -377,7 +389,11 @@ class MPVMediaPlayer(MediaPlayerBase):
     
     def cleanup(self):
         """Clean up MPV player resources."""
+        if self._cleaned_up:
+            return  # Already cleaned up, don't do it again
+            
         print(f"Cleaning up MPVMediaPlayer for: {self.url}")
+        self._cleaned_up = True  # Mark as cleaned up
         
         # Stop the monitoring thread FIRST
         if hasattr(self, '_stop_monitor'):
@@ -386,25 +402,42 @@ class MPVMediaPlayer(MediaPlayerBase):
         # Wait for the monitoring thread to finish
         if hasattr(self, '_monitor_thread') and self._monitor_thread.is_alive():
             try:
-                self._monitor_thread.join(timeout=2)  # Wait max 2 seconds
+                self._monitor_thread.join(timeout=2)
                 if self._monitor_thread.is_alive():
                     print("⚠️ Monitoring thread didn't stop in time")
             except Exception as e:
                 print(f"⚠️ Error stopping monitoring thread: {e}")
         
-        # Now stop the player process
+        # Now handle the player process
         if self.is_running():
-            self.stop()
+            # Process is still running, try to stop it gracefully
+            try:
+                self._send_ipc_command({"command": ["quit"]})
+                print("⏹️ Sent quit command to MPV during cleanup.")
+                
+                try:
+                    self.process.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    print("⚠️ MPV didn't quit during cleanup, terminating...")
+                    self.process.terminate()
+                    
+            except Exception as e:
+                print(f"⚠️ Error during cleanup stop: {e}")
+                if self.process and self.process.poll() is None:
+                    self.process.terminate()
+        else:
+            print("⏹️ MPV already stopped during cleanup.")
         
         # Clean up the socket file
         if hasattr(self, 'ipc_path'):
             with suppress(FileNotFoundError):
                 os.remove(self.ipc_path)
                 print(f"Removed IPC socket at {self.ipc_path}")
+
                 
     def unload(self):
         """Public method to cleanly shut down player."""
-        self.__exit__(None, None, None)
+        self.cleanup()
 
 
 
