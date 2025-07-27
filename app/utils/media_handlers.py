@@ -225,7 +225,11 @@ async def handle_spotify_url(url: str, clean_player):
         await clean_player(vars.player_instance)
         
         # SETS UP PLAYER
+        # FIXME
+        print("setting up mpris player")
         vars.player_instance = SpotifyMPRISPlayer(track_id)
+        print(vars.player_instance)
+        await vars.player_instance.async_init()
         vars.player_type = vars.player_instance.type
         
         state = await vars.player_instance.get_state()
