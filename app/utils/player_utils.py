@@ -7,7 +7,9 @@ from app.constants import MUSIC_DIR, IGNORE_PLAYERS
 from pathlib import Path
 import shutil
 
+import time
 import asyncio
+from typing import Callable, Optional
 
 # PLAYERCTL DATA
 def get_playerctl_data(player: Optional[str] = None) -> PlayerInfo:
@@ -160,3 +162,47 @@ async def cleanup_mpd_mpdris():
             mpd_proc.kill()
             mpd_proc.wait()
         print("🛑 MPD stopped")
+        
+        
+async def wait_until_finished(
+    player_type: str,
+    song_name: str,
+    check_interval: Optional[int] = 2,
+    on_finish: Optional[Callable[[], None]] = None
+):
+    """
+    Asynchronously waits until the currently playing song changes or stops.
+    """
+    current_song_name: str = song_name
+    is_same_song: bool = True
+
+    await asyncio.sleep(15)  # Initial delay for song allocation
+
+    while is_same_song:
+        player_data = get_playerctl_data(player_type)
+
+        current = player_data.media_name
+        print(player_data)
+
+        if not current or player_data.status == "stopped":
+            print("🛑 Song stopped or returned empty — breaking the loop")
+            is_same_song = False
+
+            if asyncio.iscoroutinefunction(on_finish):
+                await on_finish()
+            elif on_finish:
+                on_finish()
+            break
+
+        if current != current_song_name:
+            print(f"✅ SONG HAS CHANGED: {current}")
+            is_same_song = False
+
+            if asyncio.iscoroutinefunction(on_finish):
+                await on_finish()
+            elif on_finish:
+                on_finish()
+            break
+
+        print(f"⏳ Song has not changed yet, sleeping: {current_song_name}")
+        await asyncio.sleep(check_interval)

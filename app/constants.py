@@ -1,6 +1,7 @@
 import os
 from .utils.resource_fetchers import load_config
 from pathlib import Path
+import re
 
 
 MUSIC_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "Music"))
@@ -32,3 +33,5 @@ COVER_ART_PATH = Path(__file__).resolve().parent / "assets" / "coverarts"
 COVER_ART_URL_PREFIX = "/assets/coverarts"
 
 DATABASE_URL = "sqlite:///db/app.db"
+
+SPOTIFY_URL_PATTERN = re.compile(r'https://open\.spotify\.com/(track|episode)/([a-zA-Z0-9]+)')

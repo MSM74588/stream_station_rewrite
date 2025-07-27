@@ -25,6 +25,11 @@ class FavouritedSongs(SQLModel, table=True):
     type: str
     cover_art_url: Optional[str]
     
+
+    
+# class Podcasts(SQLModel, table=True):
+#     id: str
+    
 class History(SQLModel, table=True):
     time: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat(), primary_key=True)
     song_name: str
@@ -35,6 +40,20 @@ class History(SQLModel, table=True):
 # DATA MODELS ------------------------------------------------------- #
 from pydantic import BaseModel, Field
 from typing import Optional, Any, Dict, List
+
+
+class SongMetadataModel(BaseModel):
+    media_name: str
+    artist: Optional[str]
+    album: Optional[str]
+    duration: Optional[int]  # in seconds
+    source: Optional[str]
+    url: Optional[str]
+    
+class QueueItem(BaseModel):
+    url: Optional[str] = None
+    file_name: Optional[str] = None
+    song_name: Optional[str] = None
 
 class PlayerInfo(BaseModel):
     status: Optional[str] = None

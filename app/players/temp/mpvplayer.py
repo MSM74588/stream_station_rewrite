@@ -4,7 +4,6 @@ import os
 import uuid
 from contextlib import suppress
 from typing import Optional
-from app.models import PlayerInfo
 
 class MPVMediaPlayer:
     def __init__(self, url):
@@ -18,7 +17,6 @@ class MPVMediaPlayer:
         self.process: Optional[asyncio.subprocess.Process] = None
         self._monitor_task: Optional[asyncio.Task] = None
         self._cleaned_up = False
-        
 
     async def start(self):
         try:
@@ -153,38 +151,20 @@ class MPVMediaPlayer:
 
                 cache = await self._get_property("demuxer-cache-state", subkey="cache-size")
                 cache = cache if cache is not None else 0
-                
-                status = "paused" if paused else "playing" if self.is_running() else "stopped"
-                current_media_type = "audio" if "--no-video" in self.process.args else "video"
-            # return {
-            #     "status": "paused" if paused else "playing" if self.is_running() else "stopped",
-            #     "current_media_type": "audio" if "--no-video" in self.process.args else "video",
-            #     "volume": volume,
-            #     "is_paused": paused,
-            #     "cache_size": cache,
-            #     "media_name": self.info.get("title") or "Unknown",
-            #     "media_uploader": self.info.get("uploader") or self.info.get("channel") or "Unknown",
-            #     "media_duration": self.info.get("duration") or 0,
-            #     "media_progress": progress,
-            #     "is_live": self.info.get("is_live") or False,
-            #     "media_url": self.info.get("webpage_url") or self.url,
-            # }
-            
-            return PlayerInfo(
-                status=status,
-                current_media_type= current_media_type,
-                volume=volume,
-                is_paused=(status.lower() != "playing"),
-                cache_size=cache,
-                media_name= self.info.get("title") or "Unknown",
-                media_uploader=self.info.get("uploader") or self.info.get("channel") or "Unknown",
-                media_duration= self.info.get("duration") or 0,
-                media_progress=progress,
-                media_url=self.info.get("webpage_url") or self.url,
-                is_live=self.info.get("is_live") or False,
-            )
-            
-            
+
+            return {
+                "status": "paused" if paused else "playing" if self.is_running() else "stopped",
+                "current_media_type": "audio" if "--no-video" in self.process.args else "video",
+                "volume": volume,
+                "is_paused": paused,
+                "cache_size": cache,
+                "media_name": self.info.get("title") or "Unknown",
+                "media_uploader": self.info.get("uploader") or self.info.get("channel") or "Unknown",
+                "media_duration": self.info.get("duration") or 0,
+                "media_progress": progress,
+                "is_live": self.info.get("is_live") or False,
+                "media_url": self.info.get("webpage_url") or self.url,
+            }
         except Exception as e:
             print(f"⚠️ Failed to get MPV state: {e}")
 
