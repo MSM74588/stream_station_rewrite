@@ -175,34 +175,58 @@ async def wait_until_finished(
     """
     current_song_name: str = song_name
     is_same_song: bool = True
+    consecutive_errors = 0
+    max_errors = 5
 
-    await asyncio.sleep(15)  # Initial delay for song allocation
+    await asyncio.sleep(5)  # Reduced initial delay
 
-    while is_same_song:
-        player_data = get_playerctl_data(player_type)
+    print(f"⏳ Starting to monitor: {current_song_name}")
 
-        current = player_data.media_name
-        print(player_data)
+    while is_same_song and consecutive_errors < max_errors:
+        try:
+            player_data = get_playerctl_data(player_type)
+            consecutive_errors = 0  # Reset error counter on success
 
-        if not current or player_data.status == "stopped":
-            print("🛑 Song stopped or returned empty — breaking the loop")
-            is_same_song = False
+            current = player_data.media_name
+            status = player_data.status
 
+            if not current or status == "stopped":
+                print(f"🛑 Song stopped or returned empty — breaking the loop (status: {status})")
+                is_same_song = False
+                break
+
+            if current != current_song_name:
+                print(f"✅ SONG HAS CHANGED: {current}")
+                is_same_song = False
+                break
+
+            # FIXME, HOTFIX, for spotify.
+            if player_type == "spotify":
+                p_data = get_playerctl_data(player_type)
+                if p_data.status == "paused" and p_data.media_progress == 0:
+                    # BREAK THE WHILE LOOP AND TRANSITION TO CALLBACK
+                    break
+
+            print(f"⏳ Still playing: {current_song_name} (status: {status})")
+            await asyncio.sleep(check_interval)
+            
+        except Exception as e:
+            consecutive_errors += 1
+            print(f"⚠️ Error monitoring playback (attempt {consecutive_errors}/{max_errors}): {e}")
+            
+            if consecutive_errors >= max_errors:
+                print("❌ Too many consecutive errors, assuming playback finished")
+                is_same_song = False
+                break
+                
+            await asyncio.sleep(check_interval)
+
+    # Call the finish callback
+    if on_finish:
+        try:
             if asyncio.iscoroutinefunction(on_finish):
                 await on_finish()
-            elif on_finish:
+            else:
                 on_finish()
-            break
-
-        if current != current_song_name:
-            print(f"✅ SONG HAS CHANGED: {current}")
-            is_same_song = False
-
-            if asyncio.iscoroutinefunction(on_finish):
-                await on_finish()
-            elif on_finish:
-                on_finish()
-            break
-
-        print(f"⏳ Song has not changed yet, sleeping: {current_song_name}")
-        await asyncio.sleep(check_interval)
+        except Exception as e:
+            print(f"⚠️ Error in finish callback: {e}")
