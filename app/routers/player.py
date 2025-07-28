@@ -17,6 +17,9 @@ import requests
 
 from app.utils.media_handlers import *
 
+import app.queue as queue
+import app.utils.media_handlers as media_handler
+
 
 
 
@@ -31,6 +34,37 @@ TODO: Queue
 - This has to be handled as per the link (if playlist link) provided, like if spotify is instructed to play a Playlist,
 It should not initiate the queue, and the next and previous action should be directly be passed to mpris player to play the next song in the play list.
 """
+
+async def clean_player(player):
+    """Safely clean up the current player instance"""
+    if player is None:
+        return
+        
+    try:
+        print(f"🧹 Cleaning up {player.type} player...")
+        
+        # Stop the player
+        if hasattr(player, 'stop'):
+            if asyncio.iscoroutinefunction(player.stop):
+                await player.stop()
+            else:
+                player.stop()
+        
+        # Unload/cleanup the player
+        if hasattr(player, 'unload'):
+            if asyncio.iscoroutinefunction(player.unload):
+                await player.unload()
+            else:
+                player.unload()
+                
+        print(f"✅ {player.type} player cleaned up successfully")
+        
+    except Exception as e:
+        print(f"⚠️ Error cleaning up player: {e}")
+    finally:
+        # Always reset the global reference
+        vars.player_instance = None
+        vars.player_type = ""
 
 
 @router.get("/", tags=["Player"], summary="Get Player Status", response_model=PlayerInfo)
@@ -63,19 +97,14 @@ async def play_media(MediaData: Optional[MediaData] = Body(None)):
     """
     
         
-    def _clean_player(player):
-        try:
-            if player is not None:
-                player.unload()  # Gracefully unload the player (stop, cleanup, etc.)
-            vars.player_instance = None  # Explicitly reset global reference
-        except Exception as e:
-            print(f"Cannot Stop Player: {e}")
-            raise ValueError("Cannot Stop Player")
+    if queue.queue and MediaData is None:
+        await media_handler.play_next_in_queue()
+        
     
     # PLAIN PLAYBACK CONTROL, IF NOT DATA IS PASSED
     if vars.player_instance is not None and not MediaData:
         # CAN BE MPRIS, MPD, MPV
-        vars.player_instance.play()
+        await vars.player_instance.play()
         return {
             "message" : "played"
         }
@@ -90,7 +119,7 @@ async def play_media(MediaData: Optional[MediaData] = Body(None)):
     # if it contains song_name then route to MPD playback, for local playback only. 
     if MediaData.song_name and not MediaData.url:
         song_name = MediaData.song_name.strip()
-        return await handle_mpd_song(song_name, _clean_player)
+        return await handle_mpd_song(song_name, clean_player)
 
         
     url = MediaData.url.strip() # type: ignore
@@ -106,7 +135,7 @@ async def play_media(MediaData: Optional[MediaData] = Body(None)):
 
     for matcher, handler in handlers:
         if matcher(url):
-            return await handler(url, _clean_player)
+            return await handler(url, clean_player)
 
     raise HTTPException(status_code=400, detail="Unsupported media URL. Only Spotify and YouTube URLs are supported.")
     
@@ -122,7 +151,7 @@ def is_youtube_url(url: str) -> bool:
     
     
 @router.post("/stop", tags=["Player"])
-def stop_player():
+async def stop_player():
     """
     # Stops Player
     Stops Player and Unloads them from `vars.player_instance`
@@ -131,7 +160,8 @@ def stop_player():
     if vars.player_instance is None:
             raise HTTPException(status_code=400, detail="No media is currently loaded")
     try:
-        vars.player_instance.stop()
+        await vars.player_instance.stop()
+        await vars.player_instance.unload()
         vars.player_instance = None  # Reset the player instance                
         # Reset the STATE
         vars.player_info = PlayerInfo()
@@ -142,7 +172,7 @@ def stop_player():
     
 
 @router.post("/pause", tags=["Player"])
-def pause_player():
+async def pause_player():
     """
     # Pause the current player
     """
@@ -151,8 +181,8 @@ def pause_player():
         raise HTTPException(status_code=400, detail="No media is currently loaded")
     
     try:
-        vars.player_instance.pause()
-        vars.player_info = vars.player_instance.get_state()
+        await vars.player_instance.pause()
+        vars.player_info = await vars.player_instance.get_state()
         # player_info. = PlayerInfo(is_paused=True)
         
         return vars.player_info
@@ -161,7 +191,7 @@ def pause_player():
     
     
 @router.post("/loop", tags=["Player"])
-def loop_player():
+async def loop_player():
     """
     # Set Loop Mode of Player
     Toggles the loop mode for the player, it only sets track loop mode, i.e single loop for ALL types of players.
@@ -169,15 +199,16 @@ def loop_player():
     if vars.player_instance is not None:
         
             # SET MPD REPEAT MODE
+            
         return {
-            "loop enabled": vars.player_instance.set_repeat(),
+            "loop enabled": await vars.player_instance.set_repeat(),
         }
         
     else:
         raise HTTPException(status_code=400, detail="No media is currently loaded")
     
 @router.post("/volume", tags=["Player"])
-def set_volume(set: int = Query(..., ge=0, le=150, description="Volume percent (0-150)")):
+async def set_volume(set: int = Query(..., ge=0, le=150, description="Volume percent (0-150)")):
     """
     # Set Volume of player
     Pass the volume as a parameter, and it sets the volume.
@@ -194,9 +225,9 @@ def set_volume(set: int = Query(..., ge=0, le=150, description="Volume percent (
         # Cap set to 100 for mpd
         set = min(set, 100)
         
-    vars.player_instance.set_volume(set)
+    await vars.player_instance.set_volume(set)
                 
-    vars.player_info = vars.player_instance.get_state()
+    vars.player_info = await vars.player_instance.get_state()
     return vars.player_info
 
 
@@ -219,7 +250,7 @@ def player_previous():
 
 
 @router.get("/album_art", tags=["Player"])
-def album_art():
+async def album_art():
     """
     # Album Art
     Returns the album art image.

@@ -14,3 +14,13 @@
 - [ ] Queue listener. (for MPV : special cases for MPD CD cases or MPD DirPlayer CASES)
 
 - [ ] Unexpected behavior of spotify sync when fetching into a fresh empty DB
+
+# NOTE:
+- Dependency Injection and Custom Context Manager for players (~ Session Manager).
+
+# KNOWN BUGS:
+- The songs must be more than 15 sec long at minimum or it can mess up the queue system since allocation of the song name takes time since it is being fetched by ytdlp inside MPV player(specific to youtube player)
+- If network is slow, this can get furthur messed up, FIX THIS. 
+- Points of Failure: (Needs Improvement, or redo)
+        - wait_until_finished() in app/utils/player_utils.py
+        - play_next_in_queue() in app/utils/media_handlers.py

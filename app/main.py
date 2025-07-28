@@ -17,7 +17,7 @@ from app.models import Item
 from app.crud import get_items, create_item
 
 
-from app.routers import history, player, spotify_tasks, songs_fetchers, search, favourites
+from app.routers import history, player, spotify_tasks, songs_fetchers, search, favourites, podcasts, queue_manager
 
 
 from app.constants import VERSION, COVER_ART_PATH, MPD_PORT, COVER_ART_URL_PREFIX
@@ -28,7 +28,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.utils.player_utils import *
 
-from app.variables import mpd_proc, mpdirs2_proc, player_instance
+from app.variables import player_instance
 
 from app.database import create_db_and_tables, get_session
 
@@ -104,6 +104,10 @@ app.include_router(songs_fetchers.router)
 app.include_router(search.router, prefix="/search")
 app.include_router(favourites.router)
 app.include_router(history.router)
+app.include_router(podcasts.router)
+app.include_router(queue_manager.router)
+
+
 
 
 
@@ -138,13 +142,13 @@ def server_status():
         }
 
 
-@app.post("/items/", response_model=Item)
-def create_new_item(item: Item, session: Session = Depends(get_session)):
-    return create_item(session, item)
+# @app.post("/items/", response_model=Item)
+# def create_new_item(item: Item, session: Session = Depends(get_session)):
+#     return create_item(session, item)
 
-@app.get("/items/", response_model=list[Item])
-def read_items(session: Session = Depends(get_session)):
-    return get_items(session)
+# @app.get("/items/", response_model=list[Item])
+# def read_items(session: Session = Depends(get_session)):
+#     return get_items(session)
 
 @app.websocket("/ws/items")
 async def websocket_items(websocket: WebSocket):

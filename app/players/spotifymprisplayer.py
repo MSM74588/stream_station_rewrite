@@ -15,6 +15,8 @@ class SpotifyMPRISPlayer(MediaPlayerBase):
             raise ValueError("No Spotify ID provided")
 
     async def async_init(self):
+        # FIXME
+        print("RAN ASYNC INIT")
         await self._run("xdg-open", f"spotify:track:{self.spotify_id}")
         await asyncio.sleep(2)
         await self._run("playerctl", "-p", "spotify", "shuffle", "off")
@@ -22,6 +24,8 @@ class SpotifyMPRISPlayer(MediaPlayerBase):
         return self
 
     async def _run(self, *args):
+        # FIXME
+        print("RUN SEGMENT RAN")
         proc = await asyncio.create_subprocess_exec(
             *args,
             stdout=asyncio.subprocess.PIPE,

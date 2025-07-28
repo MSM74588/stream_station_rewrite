@@ -193,8 +193,8 @@ async def handle_spotify_next_song_played(url):
         # ✅ ADD THIS: Actually open Spotify!
         print(f"🎧 Opening Spotify URL: {url}")
         try:
-            import subprocess
-            subprocess.run(['xdg-open', url], check=True, timeout=10)
+            # FIXME Wait until finished function to be ran.
+            await handle_spotify_url(url=url, clean_player=playerRouter.clean_player)
             print("✅ Spotify opened successfully")
         except Exception as e:
             print(f"❌ Failed to open Spotify: {e}")
@@ -229,12 +229,16 @@ async def handle_spotify_url(url: str, clean_player):
         print("setting up mpris player")
         vars.player_instance = SpotifyMPRISPlayer(track_id)
         print(vars.player_instance)
-        await vars.player_instance.async_init()
+        
+        # FIXME, why is this needed?
+        a = await vars.player_instance.async_init()
+        
         vars.player_type = vars.player_instance.type
         
         state = await vars.player_instance.get_state()
 
         # LOGS HISTORY
+        print("HISTORY LOGGING??")
         await log_history(vars.player_type, song_name=state.media_name)
         
         # FIXED: Proper task creation for monitoring
