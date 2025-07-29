@@ -12,6 +12,9 @@ from mutagen import File as MutagenFile  # type: ignore[reportPrivateImportUsage
 from ..utils.resource_fetchers import load_config
 from app.constants import CONFIG_PATH
 
+from app.constants import MUSIC_DIR
+music_dir = MUSIC_DIR
+
 router = APIRouter()
 
 @router.get("/songs/spotify", response_model=List[SpotifyLikedSongItem], tags=["Resource Fetcher"])
@@ -60,8 +63,7 @@ def get_local_songs():
     except subprocess.CalledProcessError as e:
         return {"error": "Failed to query MPD", "details": str(e)}
 
-    project_dir = Path(__file__).resolve().parent
-    music_dir = (project_dir / "Music").resolve()
+
     songs = []
 
     for line in output.strip().split("\n"):
@@ -85,6 +87,9 @@ def get_local_songs():
         duration = None
         try:
             audio = MutagenFile(file_path, easy=True)
+            
+            print(f"Mutagen File: {audio}")
+            
             if audio:
                 metadata = audio.tags or {}
 
