@@ -1,0 +1,6 @@
+cache-path: spotdl_tmp/.spotdl-cache
+ffmpeg: ffmpeg
+format: mp3
+log-level: INFO
+output: app/media/downloads/spotify/{artist} - {title}.{output-ext}
+save-file: spotdl_tmp/.spotdl.sync.json

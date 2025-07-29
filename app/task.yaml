@@ -7,3 +7,6 @@ clean_spotify:
 
 curl_test:
   - curl https://example.com
+
+download_spotify_songs:
+  - uv run task_programs/likedSongsDownloader.py 

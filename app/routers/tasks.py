@@ -26,6 +26,15 @@ async def run_named_task(request: TaskRequest, background_tasks: BackgroundTasks
     background_tasks.add_task(run_task, task_name, tasks[task_name])
     return {"status": "scheduled", "message": f"Task '{task_name}' has been started."}
 
+@router.get("/taskrunner")
+async def list_available_tasks():
+    """
+    Returns a dictionary of all available tasks and their associated command lists.
+    """
+    tasks = load_tasks()
+    return {"available_tasks": tasks}
+
+
 def run_task(task_name: str, commands: list[str]):
     log_path = LOG_DIR / f"task_{task_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
     
