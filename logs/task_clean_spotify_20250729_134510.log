@@ -1,5 +1,0 @@
-[2025-07-29 13:45:10.633689] Starting task: clean_spotify
-
-Running command: rm -rf ./app/media/downloads/spotify/*
-
-[2025-07-29 13:45:10.641800] Task completed: clean_spotify
