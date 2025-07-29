@@ -88,8 +88,6 @@ def get_local_songs():
         try:
             audio = MutagenFile(file_path, easy=True)
             
-            print(f"Mutagen File: {audio}")
-            
             if audio:
                 metadata = audio.tags or {}
 

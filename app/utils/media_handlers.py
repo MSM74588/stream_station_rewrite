@@ -311,6 +311,8 @@ async def handle_mpd_song(song_name: str, clean_player):
         vars.player_instance = MPDPlayer(song_name=song_name)
         vars.player_type = vars.player_instance.type
         
+        print("PLAYING MPD PLAYER??????/")
+        await vars.player_instance.start()
         await vars.player_instance.play()
         
         # Give MPD more time to start playing
