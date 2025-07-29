@@ -30,7 +30,7 @@ def add_raw_url(url: str):
     return {"source": "direct", "url": url}
 
 
-@router.post("/queue/add")
+@router.post("/queue/add", tags=["Queue"])
 def add_to_queue(items: List[QueueItem], background_tasks: BackgroundTasks):
     """
     # Add to queue
@@ -48,7 +48,7 @@ def add_to_queue(items: List[QueueItem], background_tasks: BackgroundTasks):
     }
 
 
-@router.post("/queue/clear")
+@router.post("/queue/clear", tags=["Queue"])
 def clear_queue():
     """
     # Clear the Queue
@@ -114,7 +114,7 @@ class AddBeforeRequest(BaseModel):
 
 
 
-@router.post("/queue/add_before")
+@router.post("/queue/add_before", tags=["Queue"])
 def add_before(item: AddBeforeRequest):
     """
     Insert item before a given index in the queue.

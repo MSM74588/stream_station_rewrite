@@ -14,7 +14,7 @@ from app.database import engine
 
 router = APIRouter()
 
-@router.post("/favourites")
+@router.post("/favourites", tags=["Manually Saved Songs"])
 async def liked_songs_post(
     song_name: str = Body(..., embed=True),
     artist: str = Body("", embed=True),
@@ -86,7 +86,7 @@ async def liked_songs_post(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to add song to DB: {e}")
 
-@router.get("/favourites")
+@router.get("/favourites", tags=["Manually Saved Songs"])
 def get_all_favourited_songs(type: Optional[str] = Query(None, description="Filter by song type (e.g. youtube, spotify, mpd, ...)")):
     """
     # Get Favourite Songs

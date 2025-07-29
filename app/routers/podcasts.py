@@ -252,7 +252,7 @@ def safe_get(url: str, timeout: float = 4.0) -> str:
         return ""
 
 # --- Dispatcher ---
-@router.get("/podcast")
+@router.get("/podcast", tags=["Podcasts"])
 async def handle_podcast(request: PodcastParamsBody):
     url = request.url.strip()
 
@@ -269,7 +269,7 @@ async def handle_podcast(request: PodcastParamsBody):
 
     raise HTTPException(status_code=400, detail="Unsupported podcast URL type")
 
-@router.get("/podcast/episodes")
+@router.get("/podcast/episodes",tags=["Podcasts"])
 async def fetch_episodes():
     """
     # Fetch episodes of podcast
@@ -277,7 +277,7 @@ async def fetch_episodes():
     return {"episodes": "podcast episodes"}
 
 
-@router.post("/podcast/save")
+@router.post("/podcast/save", tags=["Podcasts"])
 async def save_podcast(body: PodcastParamsBody, session: Session = Depends(get_session)):
     url = body.url.strip()
 
@@ -307,7 +307,7 @@ async def save_podcast(body: PodcastParamsBody, session: Session = Depends(get_s
 
     raise HTTPException(status_code=400, detail="Unsupported podcast URL type")
 
-@router.post("/episode/save")
+@router.post("/episode/save", tags=["Podcasts"])
 async def save_episode(body: PodcastParamsBody, session: Session = Depends(get_session)):
     url = body.url.strip()
 

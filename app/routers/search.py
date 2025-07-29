@@ -63,7 +63,7 @@ def _get_thumbnail_url(video_data: dict) -> Optional[str]:
     return best_thumbnail_url
 
 
-@router.get("/youtube", summary="Get YouTube video, playlist, or search results")
+@router.get("/youtube", summary="Get YouTube video, playlist, or search results", tags=["Search"])
 def yt_feed(
     search: str = Query(..., description="Search term or YouTube video/playlist URL"),
     page: int = Query(1, ge=1, description="Page number for pagination (for search only)"),

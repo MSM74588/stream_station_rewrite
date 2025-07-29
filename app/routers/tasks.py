@@ -15,7 +15,7 @@ router = APIRouter()
 class TaskRequest(BaseModel):
     task_name: str
     
-@router.post("/taskrunner")
+@router.post("/taskrunner", tags=["Task Runner"])
 async def run_named_task(request: TaskRequest, background_tasks: BackgroundTasks):
     task_name = request.task_name
     tasks = load_tasks()
@@ -26,7 +26,7 @@ async def run_named_task(request: TaskRequest, background_tasks: BackgroundTasks
     background_tasks.add_task(run_task, task_name, tasks[task_name])
     return {"status": "scheduled", "message": f"Task '{task_name}' has been started."}
 
-@router.get("/taskrunner")
+@router.get("/taskrunner", tags=["Task Runner"])
 async def list_available_tasks():
     """
     Returns a dictionary of all available tasks and their associated command lists.

@@ -119,23 +119,29 @@ async def play_media(MediaData: Optional[MediaData] = Body(None)):
     # if it contains song_name then route to MPD playback, for local playback only. 
     if MediaData.song_name and not MediaData.url:
         song_name = MediaData.song_name.strip()
-        return await handle_mpd_song(song_name, clean_player)
+        p = await handle_mpd_song(song_name, clean_player)
+        print(f"MPD RETURNED: {p}")
+        if p:
+            print(f"MPD RETURNED: {p}")
+            return p
+        else:
+            raise HTTPException(status_code=500, detail="Failed to play MPD player")
 
-        
-    url = MediaData.url.strip() # type: ignore
+    if MediaData.url:
+        url = MediaData.url.strip() # type: ignore
     
     
     
     # === Dispatcher ===
         
-    handlers = [
-        (is_spotify_url, handle_spotify_url),
-        (is_youtube_url, handle_youtube_url),
-    ]
+        handlers = [
+            (is_spotify_url, handle_spotify_url),
+            (is_youtube_url, handle_youtube_url),
+        ]
 
-    for matcher, handler in handlers:
-        if matcher(url):
-            return await handler(url, clean_player)
+        for matcher, handler in handlers:
+            if matcher(url):
+                return await handler(url, clean_player)
 
     raise HTTPException(status_code=400, detail="Unsupported media URL. Only Spotify and YouTube URLs are supported.")
     
