@@ -17,7 +17,7 @@ from app.models import Item
 from app.crud import get_items, create_item
 
 
-from app.routers import history, player, spotify_tasks, songs_fetchers, search, favourites, podcasts, queue_manager
+from app.routers import history, player, spotify_tasks, songs_fetchers, search, favourites, podcasts, queue_manager, downloader, tasks
 
 
 from app.constants import VERSION, COVER_ART_PATH, MPD_PORT, COVER_ART_URL_PREFIX
@@ -106,6 +106,9 @@ app.include_router(favourites.router)
 app.include_router(history.router)
 app.include_router(podcasts.router)
 app.include_router(queue_manager.router)
+app.include_router(downloader.router)
+app.include_router(tasks.router)
+
 
 
 

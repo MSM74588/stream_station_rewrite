@@ -27,8 +27,20 @@ class FavouritedSongs(SQLModel, table=True):
     
 
     
-# class Podcasts(SQLModel, table=True):
-#     id: str
+class Podcast(SQLModel, table=True):
+    id: str = Field(primary_key=True)
+    source: str
+    title: str
+    url: str
+    channel: str
+    
+class Episode(SQLModel, table=True):
+    id: str = Field(primary_key=True)
+    url: str
+    thumbnail_url: str
+    uploader: str
+    upload_date: str
+    
     
 class History(SQLModel, table=True):
     time: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat(), primary_key=True)

@@ -1,0 +1,9 @@
+restart_services:
+  - sudo systemctl restart nginx
+  - sudo systemctl restart redis
+
+clean_spotify:
+  - rm -rf ./app/media/downloads/spotify/*
+
+curl_test:
+  - curl https://example.com

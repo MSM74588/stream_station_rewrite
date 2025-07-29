@@ -21,3 +21,5 @@ db/*
 
 app/mpd/*
 app/assets/coverarts/*
+
+logs/*

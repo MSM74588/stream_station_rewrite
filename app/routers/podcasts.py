@@ -1,4 +1,8 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
+from sqlmodel import Session
+from app.database import get_session
+from app.models import Podcast, Episode
+import uuid
 from typing import Optional
 from pydantic import BaseModel
 import re
@@ -271,3 +275,88 @@ async def fetch_episodes():
     # Fetch episodes of podcast
     """
     return {"episodes": "podcast episodes"}
+
+
+@router.post("/podcast/save")
+async def save_podcast(body: PodcastParamsBody, session: Session = Depends(get_session)):
+    url = body.url.strip()
+
+    # Match handlers
+    handlers = [
+        (is_youtube_playlist, handle_youtube_playlist),
+        (is_youtube_channel, handle_youtube_channel),
+        (is_spotify_show, handle_spotify_show),
+        (is_rss_feed, handle_rss_feed),
+    ]
+
+    for matcher, handler in handlers:
+        if matcher(url):
+            podcast: PodcastSource = await handler(url)
+
+            db_podcast = Podcast(
+                id=str(uuid.uuid4()),
+                source=podcast.type,
+                title=podcast.title,
+                url=podcast.url,
+                channel=podcast.channel or podcast.uploader or "Unknown"
+            )
+
+            session.add(db_podcast)
+            session.commit()
+            return {"status": "saved", "podcast_id": db_podcast.id}
+
+    raise HTTPException(status_code=400, detail="Unsupported podcast URL type")
+
+@router.post("/episode/save")
+async def save_episode(body: PodcastParamsBody, session: Session = Depends(get_session)):
+    url = body.url.strip()
+
+    # For episode, we can reuse the same detectors but aim to extract a single item
+    # Assume handle_episode is a function that returns metadata for single item
+    episode = await get_episode_metadata(url)
+
+    if not episode:
+        raise HTTPException(status_code=400, detail="Unsupported or unrecognized episode URL")
+
+    # FIXME, I want to use the name of podcast as id.
+    db_episode = Episode(
+        id=str(uuid.uuid4()),
+        url=episode.url,
+        thumbnail_url=episode.thumbnail or "",
+        uploader=episode.uploader or "Unknown",
+        upload_date=episode.upload_date or ""
+    )
+
+    session.add(db_episode)
+    session.commit()
+    return {"status": "saved", "episode_id": db_episode.id}
+
+# helper functions
+import yt_dlp
+from typing import Optional
+from pydantic import BaseModel
+
+class EpisodeMetadata(BaseModel):
+    url: str
+    title: str
+    thumbnail: Optional[str]
+    uploader: Optional[str]
+    upload_date: Optional[str]
+
+async def get_episode_metadata(url: str) -> Optional[EpisodeMetadata]:
+    ydl_opts = {"quiet": True, "skip_download": True, "extract_flat": False, "force_generic_extractor": False, "dump_single_json": True}
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+            return EpisodeMetadata(
+                url=info.get("webpage_url"),
+                title=info.get("title"),
+                thumbnail=info.get("thumbnail"),
+                uploader=info.get("uploader"),
+                upload_date=info.get("upload_date")
+            )
+    except Exception as e:
+        print(f"Failed to extract episode metadata: {e}")
+        return None
+
+# FIXME, Deduplication logic

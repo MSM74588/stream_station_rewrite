@@ -4,11 +4,18 @@ from pathlib import Path
 import re
 
 
+
+
+
 MUSIC_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "Music"))
 MPD_PORT = "6601"
 
 
 BASE_DIR = Path(__file__).resolve().parent
+
+
+YTDLP_DOWNLOAD_DIR = BASE_DIR / "media" / "downloads" / "youtube"
+SPOTDL_DOWNLOAD_DIR = BASE_DIR / "media" / "downloads" / "spotify"
 
 # THIS NEEDS REFACTORING
 
