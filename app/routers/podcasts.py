@@ -253,6 +253,12 @@ def safe_get(url: str, timeout: float = 4.0) -> str:
 
 # --- Dispatcher ---
 @router.get("/podcast", tags=["Podcasts"])
+async def handle_get():
+    return {
+        "message" : "Please send a POST req with Body"
+    }
+
+@router.post("/podcast", tags=["Podcasts"])
 async def handle_podcast(request: PodcastParamsBody):
     url = request.url.strip()
 
